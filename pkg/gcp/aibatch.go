@@ -317,12 +317,6 @@ func (v *AIBatch) GetBatchPredictionJob() *v1beta1.BatchPredictionJob {
 	return v.batchPredictionJob
 }
 
-// GetModel returns the Vertex AI Model resource.
-// Note: In this version, models are managed through the model deployment component.
-func (v *AIBatch) GetModel() interface{} {
-	return nil
-}
-
 // GetModelDeployment returns the Vertex AI Model Deployment resource.
 func (v *AIBatch) GetModelDeployment() *vertexmodeldeployment.VertexModelDeployment {
 	return v.modelDeployment

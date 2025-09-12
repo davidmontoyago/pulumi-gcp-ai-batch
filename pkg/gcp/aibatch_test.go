@@ -281,10 +281,6 @@ func TestNewAIBatch_HappyPath(t *testing.T) {
 		batchPredictionJob := AIBatch.GetBatchPredictionJob()
 		require.NotNil(t, batchPredictionJob, "Batch prediction job should not be nil")
 
-		// Verify model (simplified in initial version)
-		model := AIBatch.GetModel()
-		assert.Nil(t, model, "Model should be nil in initial version")
-
 		// Verify model deployment has non-empty deployedModelId
 		modelDeployment := AIBatch.GetModelDeployment()
 		require.NotNil(t, modelDeployment, "Model deployment should not be nil")
