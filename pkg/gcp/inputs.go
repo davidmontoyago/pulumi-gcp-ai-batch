@@ -32,22 +32,33 @@ type AIBatchArgs struct {
 	ModelDisplayName pulumi.StringInput
 
 	// Batch prediction job specific fields
+
 	// Input data configuration
-	InputDataURI pulumi.StringInput // GCS URI where input data is stored (e.g., "gs://bucket/input-data.jsonl")
-	InputFormat  pulumi.StringInput // Format of input data ("jsonl", "csv", "bigquery", etc.). Defaults to "jsonl"
+	// Path to the file within the bucket where the input data is stored (e.g., "datainputs/input-data.jsonl")
+	// Defaults to "inputs/*.jsonl"
+	InputDataPath pulumi.StringInput
+	// Format of input data ("jsonl", "csv", "bigquery", etc.). Defaults to "jsonl"
+	InputFormat pulumi.StringInput
 
 	// Output data configuration
-	OutputDataURIPrefix pulumi.StringInput // GCS URI prefix where prediction results will be stored. Defaults to same bucket under /predictions
-	OutputFormat        pulumi.StringInput // Format of output data ("jsonl", "csv", "bigquery"). Defaults to "jsonl"
+	// Path to the directory within the bucket where the output data will be stored. defaults to "/predictions"
+	OutputDataPath pulumi.StringInput
+	// Format of output data ("jsonl", "csv", "bigquery"). Defaults to "jsonl"
+	OutputFormat pulumi.StringInput
 
 	// Resource allocation for batch job
-	StartingReplicaCount pulumi.IntInput // Starting number of replica nodes. Defaults to 1
-	MaxReplicaCount      pulumi.IntInput // Maximum number of replica nodes for scaling. Defaults to 3
-	BatchSize            pulumi.IntInput // Number of instances processed per batch. Optional, auto-configured if not set
+	// Starting number of replica nodes. Defaults to 1
+	StartingReplicaCount pulumi.IntInput
+	// Maximum number of replica nodes for scaling. Defaults to 3
+	MaxReplicaCount pulumi.IntInput
+	// Number of instances processed per batch. Optional, auto-configured if not set
+	BatchSize pulumi.IntInput
 
 	// Compute resource specifications
-	AcceleratorType  pulumi.StringInput // Type of accelerator (e.g., "NVIDIA_TESLA_T4"). Optional
-	AcceleratorCount pulumi.IntInput    // Number of accelerators. Optional
+	// Type of accelerator (e.g., "NVIDIA_TESLA_T4"). Optional
+	AcceleratorType pulumi.StringInput
+	// Number of accelerators. Optional
+	AcceleratorCount pulumi.IntInput
 
 	// Additional configuration
 	// Additional labels to apply to resources

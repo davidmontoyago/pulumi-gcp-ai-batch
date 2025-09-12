@@ -125,6 +125,7 @@ func (m *AIBatchMocks) NewResource(args pulumi.MockResourceArgs) (string, resour
 	case "gcp-vertex-model-deployment:resources:VertexModelDeployment":
 		outputs["projectId"] = testProjectName
 		outputs["deployedModelId"] = "test-deployed-model-id"
+		outputs["modelArtifactsBucketUri"] = "gs://test-bucket"
 	}
 
 	return args.Name + "_id", resource.NewPropertyMapFromMap(outputs), nil
@@ -188,9 +189,9 @@ func TestNewAIBatch_HappyPath(t *testing.T) {
 			MachineType:                     pulumi.String("n1-standard-2"),
 			JobDisplayName:                  pulumi.String("test-batch-job"),
 			ModelDisplayName:                pulumi.String("test-model"),
-			InputDataURI:                    pulumi.String("gs://test-bucket/input-data.jsonl"),
+			InputDataPath:                   pulumi.String("test-model/input-data.jsonl"),
 			InputFormat:                     pulumi.String("jsonl"),
-			OutputDataURIPrefix:             pulumi.String("gs://test-bucket/predictions"),
+			OutputDataPath:                  pulumi.String("test-model/predictions/"),
 			OutputFormat:                    pulumi.String("jsonl"),
 			StartingReplicaCount:            pulumi.Int(1),
 			MaxReplicaCount:                 pulumi.Int(3),
@@ -245,21 +246,21 @@ func TestNewAIBatch_HappyPath(t *testing.T) {
 
 		inputDataURICh := make(chan string, 1)
 		defer close(inputDataURICh)
-		AIBatch.InputDataURI.ApplyT(func(uri string) error {
+		AIBatch.InputDataPath.ApplyT(func(uri string) error {
 			inputDataURICh <- uri
 
 			return nil
 		})
-		assert.Equal(t, "gs://test-bucket/input-data.jsonl", <-inputDataURICh, "Input data URI should match")
+		assert.Equal(t, "test-model/input-data.jsonl", <-inputDataURICh, "Input data URI should match")
 
 		outputDataURIPrefixCh := make(chan string, 1)
 		defer close(outputDataURIPrefixCh)
-		AIBatch.OutputDataURIPrefix.ApplyT(func(uri string) error {
+		AIBatch.OutputDataPath.ApplyT(func(uri string) error {
 			outputDataURIPrefixCh <- uri
 
 			return nil
 		})
-		assert.Equal(t, "gs://test-bucket/predictions", <-outputDataURIPrefixCh, "Output data URI prefix should match")
+		assert.Equal(t, "test-model/predictions/", <-outputDataURIPrefixCh, "Output data URI prefix should match")
 
 		// Verify model service account
 		modelServiceAccount := AIBatch.GetModelServiceAccount()
@@ -273,7 +274,7 @@ func TestNewAIBatch_HappyPath(t *testing.T) {
 
 			return nil
 		})
-		expectedEmail := "test-vertex-endpoint-model-sa-service-account@test-project.iam.gserviceaccount.com"
+		expectedEmail := "test-vertex-endpoint-model-service-account@test-project.iam.gserviceaccount.com"
 		assert.Equal(t, expectedEmail, <-serviceAccountEmailCh, "Model service account email should match expected pattern")
 
 		// Verify batch prediction job
@@ -348,6 +349,39 @@ func TestNewAIBatch_HappyPath(t *testing.T) {
 		assert.Equal(t, tempModelDir, AIBatch.ModelDir, "Model directory should match the temp directory")
 		assert.Equal(t, "model/", AIBatch.ModelBucketBasePath, "Model bucket base path should use default value")
 
+		// Verify input and output config URIs are properly constructed with bucket URI and paths
+
+		// Verify input config URI construction
+		batchJob := AIBatch.GetBatchPredictionJob()
+		require.NotNil(t, batchJob, "Batch prediction job should not be nil")
+
+		// Extract input config GCS URIs
+		inputConfigCh := make(chan []string, 1)
+		defer close(inputConfigCh)
+		batchJob.InputConfig.GcsSource().Uris().ApplyT(func(uris []string) error {
+			inputConfigCh <- uris
+
+			return nil
+		})
+		inputConfigURIs := <-inputConfigCh
+		require.Len(t, inputConfigURIs, 1, "Should have exactly one input URI")
+
+		expectedInputURI := "gs://test-bucket/test-model/input-data.jsonl"
+		assert.Equal(t, expectedInputURI, inputConfigURIs[0], "Input config URI should be bucket URI + input data path")
+
+		// Extract output config GCS URI prefix
+		outputConfigCh := make(chan string, 1)
+		defer close(outputConfigCh)
+		batchJob.OutputConfig.GcsDestination().OutputUriPrefix().ApplyT(func(uriPrefix string) error {
+			outputConfigCh <- uriPrefix
+
+			return nil
+		})
+		outputConfigURI := <-outputConfigCh
+
+		expectedOutputURI := "gs://test-bucket/test-model/predictions/"
+		assert.Equal(t, expectedOutputURI, outputConfigURI, "Output config URI should be bucket URI + output data path")
+
 		return nil
 	}, pulumi.WithMocks("project", "stack", &AIBatchMocks{}))
 
@@ -395,6 +429,25 @@ func TestNewAIBatch_WithDefaults(t *testing.T) {
 			return nil
 		})
 		assert.Equal(t, "test-vertex-endpoint-model", <-modelDisplayNameCh, "Model display name should default to component name + '-model'")
+
+		// Input / output data paths
+		inputDataURICh := make(chan string, 1)
+		defer close(inputDataURICh)
+		AIBatch.InputDataPath.ApplyT(func(uri string) error {
+			inputDataURICh <- uri
+
+			return nil
+		})
+		assert.Equal(t, "inputs/*.jsonl", <-inputDataURICh, "Input data URI should match")
+
+		outputDataURIPrefixCh := make(chan string, 1)
+		defer close(outputDataURIPrefixCh)
+		AIBatch.OutputDataPath.ApplyT(func(uri string) error {
+			outputDataURIPrefixCh <- uri
+
+			return nil
+		})
+		assert.Equal(t, "predictions/", <-outputDataURIPrefixCh, "Output data URI prefix should match")
 
 		inputFormatCh := make(chan string, 1)
 		defer close(inputFormatCh)
@@ -467,6 +520,43 @@ func TestNewAIBatch_WithDefaults(t *testing.T) {
 		for _, expectedArtifact := range expectedArtifacts {
 			assert.Contains(t, artifacts, expectedArtifact, "Should contain artifact with correct path: %s", expectedArtifact)
 		}
+
+		// Verify input and output config URIs are properly constructed with bucket URI and default paths
+		modelDeployment := AIBatch.GetModelDeployment()
+		require.NotNil(t, modelDeployment, "Model deployment should not be nil")
+
+		// Verify input and output config URIs are properly constructed with bucket URI and paths
+
+		// Verify input config URI construction
+		batchJob := AIBatch.GetBatchPredictionJob()
+		require.NotNil(t, batchJob, "Batch prediction job should not be nil")
+
+		// Extract input config GCS URIs
+		inputConfigCh := make(chan []string, 1)
+		defer close(inputConfigCh)
+		batchJob.InputConfig.GcsSource().Uris().ApplyT(func(uris []string) error {
+			inputConfigCh <- uris
+
+			return nil
+		})
+		inputConfigURIs := <-inputConfigCh
+		require.Len(t, inputConfigURIs, 1, "Should have exactly one input URI")
+
+		expectedInputURI := "gs://test-bucket/inputs/*.jsonl"
+		assert.Equal(t, expectedInputURI, inputConfigURIs[0], "Input config URI should be bucket URI + input data path")
+
+		// Extract output config GCS URI prefix
+		outputConfigCh := make(chan string, 1)
+		defer close(outputConfigCh)
+		batchJob.OutputConfig.GcsDestination().OutputUriPrefix().ApplyT(func(uriPrefix string) error {
+			outputConfigCh <- uriPrefix
+
+			return nil
+		})
+		outputConfigURI := <-outputConfigCh
+
+		expectedOutputURI := "gs://test-bucket/predictions/"
+		assert.Equal(t, expectedOutputURI, outputConfigURI, "Output config URI should be bucket URI + output data path")
 
 		return nil
 	}, pulumi.WithMocks("project", "stack", &AIBatchMocks{}))

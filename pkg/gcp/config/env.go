@@ -91,9 +91,9 @@ func (c *Config) ToAIBatchArgs() *gcp.AIBatchArgs {
 		MachineType:                     pulumi.String(c.MachineType),
 
 		// Batch prediction job specific fields
-		InputDataURI:         pulumi.String(c.InputDataURI),
+		InputDataPath:        pulumi.String(c.InputDataURI),
 		InputFormat:          pulumi.String(c.InputFormat),
-		OutputDataURIPrefix:  pulumi.String(c.OutputDataURIPrefix),
+		OutputDataPath:       pulumi.String(c.OutputDataURIPrefix),
 		OutputFormat:         pulumi.String(c.OutputFormat),
 		StartingReplicaCount: pulumi.Int(c.StartingReplicaCount),
 		MaxReplicaCount:      pulumi.Int(c.MaxReplicaCount),

@@ -31,9 +31,9 @@ type AIBatch struct {
 	ModelDisplayName                  pulumi.StringOutput
 
 	// Batch prediction job specific fields
-	InputDataURI         pulumi.StringOutput
+	InputDataPath        pulumi.StringOutput
 	InputFormat          pulumi.StringOutput
-	OutputDataURIPrefix  pulumi.StringOutput
+	OutputDataPath       pulumi.StringOutput
 	OutputFormat         pulumi.StringOutput
 	StartingReplicaCount pulumi.IntOutput
 	MaxReplicaCount      pulumi.IntOutput
@@ -96,9 +96,9 @@ func NewAIBatch(ctx *pulumi.Context, name string, args *AIBatchArgs, opts ...pul
 		ModelDisplayName: setDefaultString(args.ModelDisplayName, name+"-model"),
 
 		// Batch prediction job specific defaults
-		InputDataURI:         setDefaultString(args.InputDataURI, ""),
+		InputDataPath:        setDefaultString(args.InputDataPath, "inputs/*.jsonl"),
 		InputFormat:          setDefaultString(args.InputFormat, "jsonl"),
-		OutputDataURIPrefix:  setDefaultString(args.OutputDataURIPrefix, ""),
+		OutputDataPath:       setDefaultString(args.OutputDataPath, "predictions/"),
 		OutputFormat:         setDefaultString(args.OutputFormat, "jsonl"),
 		StartingReplicaCount: setDefaultInt(args.StartingReplicaCount, 1),
 		MaxReplicaCount:      setDefaultInt(args.MaxReplicaCount, 3),
@@ -138,8 +138,8 @@ func NewAIBatch(ctx *pulumi.Context, name string, args *AIBatchArgs, opts ...pul
 		"vertex_ai_batch_model_prediction_input_schema_uri":    AIBatch.modelDeployment.ModelPredictionInputSchemaUri,
 		"vertex_ai_batch_model_prediction_output_schema_uri":   AIBatch.modelDeployment.ModelPredictionOutputSchemaUri,
 		"vertex_ai_batch_model_prediction_behavior_schema_uri": AIBatch.modelDeployment.ModelPredictionBehaviorSchemaUri,
-		"vertex_ai_batch_input_data_uri":                       AIBatch.InputDataURI,
-		"vertex_ai_batch_output_data_uri_prefix":               AIBatch.OutputDataURIPrefix,
+		"vertex_ai_batch_input_data_uri":                       AIBatch.InputDataPath,
+		"vertex_ai_batch_output_data_uri_prefix":               AIBatch.OutputDataPath,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to register resource outputs: %w", err)
@@ -189,7 +189,7 @@ func (v *AIBatch) deploy(ctx *pulumi.Context, args *AIBatchArgs) error {
 	v.modelDeployment = modelDeployment
 
 	// Set default output URI prefix to same bucket under /predictions if not specified
-	v.OutputDataURIPrefix = pulumi.All(v.OutputDataURIPrefix, modelArtifactsURI).ApplyT(func(args []interface{}) string {
+	v.OutputDataPath = pulumi.All(v.OutputDataPath, modelArtifactsURI).ApplyT(func(args []interface{}) string {
 		uri := args[0].(string)
 		bucketURI := args[1].(string)
 		if uri == "" {
@@ -245,7 +245,7 @@ func (v *AIBatch) deployModel(ctx *pulumi.Context, modelArtifactsURI pulumi.Stri
 func (v *AIBatch) createModelServiceAccount(ctx *pulumi.Context) (*serviceaccount.Account, error) {
 	accountID := v.NewResourceName("model-sa", "service-account", 30)
 
-	return serviceaccount.NewAccount(ctx, v.NewResourceName("model-sa", "service-account", 63), &serviceaccount.AccountArgs{
+	return serviceaccount.NewAccount(ctx, v.NewResourceName("model", "service-account", 63), &serviceaccount.AccountArgs{
 		Project:     pulumi.String(v.Project),
 		AccountId:   pulumi.String(accountID),
 		DisplayName: pulumi.Sprintf("%s Vertex AI Service Account", v.ModelDisplayName),
@@ -288,7 +288,9 @@ func (v *AIBatch) createBatchPredictionJob(ctx *pulumi.Context, modelDeployment 
 	inputConfig := &v1beta1.GoogleCloudAiplatformV1beta1BatchPredictionJobInputConfigArgs{
 		InstancesFormat: v.InputFormat,
 		GcsSource: &v1beta1.GoogleCloudAiplatformV1beta1GcsSourceArgs{
-			Uris: pulumi.StringArray{v.InputDataURI},
+			Uris: pulumi.StringArray{
+				pulumi.Sprintf("%s/%s", modelDeployment.ModelArtifactsBucketUri, v.InputDataPath),
+			},
 		},
 	}
 
@@ -296,7 +298,7 @@ func (v *AIBatch) createBatchPredictionJob(ctx *pulumi.Context, modelDeployment 
 	outputConfig := &v1beta1.GoogleCloudAiplatformV1beta1BatchPredictionJobOutputConfigArgs{
 		PredictionsFormat: v.OutputFormat,
 		GcsDestination: &v1beta1.GoogleCloudAiplatformV1beta1GcsDestinationArgs{
-			OutputUriPrefix: v.OutputDataURIPrefix,
+			OutputUriPrefix: pulumi.Sprintf("%s/%s", modelDeployment.ModelArtifactsBucketUri, v.OutputDataPath),
 		},
 	}
 
