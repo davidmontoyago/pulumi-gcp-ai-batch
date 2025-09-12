@@ -274,7 +274,7 @@ func TestNewAIBatch_HappyPath(t *testing.T) {
 
 			return nil
 		})
-		expectedEmail := "test-vertex-endpoint-model-service-account@test-project.iam.gserviceaccount.com"
+		expectedEmail := "test-vertex-endpoint-model-account@test-project.iam.gserviceaccount.com"
 		assert.Equal(t, expectedEmail, <-serviceAccountEmailCh, "Model service account email should match expected pattern")
 
 		// Verify batch prediction job

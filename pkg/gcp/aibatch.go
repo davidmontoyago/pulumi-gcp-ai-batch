@@ -13,7 +13,7 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
-// AIBatch represents a GCP Vertex AI Batch Prediction Job.
+// AIBatch represents a GCP Vertex AI Model Deployment and Batch Prediction Job.
 type AIBatch struct {
 	pulumi.ResourceState
 	namer.Namer
@@ -239,47 +239,6 @@ func (v *AIBatch) deployModel(ctx *pulumi.Context, modelArtifactsURI pulumi.Stri
 		pulumi.Parent(v),
 		pulumi.DependsOn(dependencies),
 	)
-}
-
-// createModelServiceAccount creates a service account for Vertex AI operations.
-func (v *AIBatch) createModelServiceAccount(ctx *pulumi.Context) (*serviceaccount.Account, error) {
-	accountID := v.NewResourceName("model-sa", "service-account", 30)
-
-	return serviceaccount.NewAccount(ctx, v.NewResourceName("model", "service-account", 63), &serviceaccount.AccountArgs{
-		Project:     pulumi.String(v.Project),
-		AccountId:   pulumi.String(accountID),
-		DisplayName: pulumi.Sprintf("%s Vertex AI Service Account", v.ModelDisplayName),
-		Description: pulumi.String("Service account for deployed model operations"),
-	}, pulumi.Parent(v))
-}
-
-// grantModelIAMRoles grants necessary IAM roles to the model service account.
-func (v *AIBatch) grantModelIAMRoles(ctx *pulumi.Context, serviceAccountEmail pulumi.StringOutput) ([]*projects.IAMMember, error) {
-	// IAM roles specific to what the batch prediction job needs to operate
-	roles := []string{
-		"roles/storage.bucketViewer",    // List and get buckets
-		"roles/storage.objectViewer",    // For accessing model artifacts in GCS
-		"roles/storage.objectCreator",   // For writing prediction results to GCS
-		"roles/logging.logWriter",       // For writing logs during prediction
-		"roles/monitoring.metricWriter", // For writing custom metrics
-		"roles/aiplatform.user",         // For accessing Vertex AI resources
-	}
-
-	iamMembers := make([]*projects.IAMMember, len(roles))
-	for roleIndex, role := range roles {
-		bindingName := v.NewResourceName(fmt.Sprintf("model-sa-iam-%s", role), "", 63)
-		member, err := projects.NewIAMMember(ctx, bindingName, &projects.IAMMemberArgs{
-			Project: pulumi.String(v.Project),
-			Role:    pulumi.String(role),
-			Member:  pulumi.Sprintf("serviceAccount:%s", serviceAccountEmail),
-		}, pulumi.Parent(v))
-		if err != nil {
-			return nil, fmt.Errorf("failed to create IAM member for role %s: %w", role, err)
-		}
-		iamMembers[roleIndex] = member
-	}
-
-	return iamMembers, nil
 }
 
 // createBatchPredictionJob creates a Vertex AI Batch Prediction Job.
