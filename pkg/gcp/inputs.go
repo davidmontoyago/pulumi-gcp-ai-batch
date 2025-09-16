@@ -33,15 +33,19 @@ type AIBatchArgs struct {
 
 	// Batch prediction job specific fields
 
-	// Input data configuration
-	// Path to the file within the bucket where the input data is stored (e.g., "datainputs/input-data.jsonl")
-	// Defaults to "inputs/*.jsonl"
-	InputDataPath pulumi.StringInput
+	// --- Input data configuration ---
+	// Path to the local directory containing input data files (e.g., "data/inputs/")
+	// This directory is SEPARATE from the model directory and contains the actual input data
+	// that will be processed by the batch prediction job. Files will be uploaded to the
+	// bucket separately from model artifacts. Defaults to "inputs".
+	// Input data files will be uploaded to the bucket under the "inputs" directory.
+	InputDataPath string
 	// Format of input data ("jsonl", "csv", "bigquery", etc.). Defaults to "jsonl"
-	InputFormat pulumi.StringInput
+	InputFormat string
 
-	// Output data configuration
-	// Path to the directory within the bucket where the output data will be stored. defaults to "/predictions"
+	// --- Output data configuration ---
+	// Path to the directory within the bucket where the output data will be stored.
+	// Defaults to "/predictions"
 	OutputDataPath pulumi.StringInput
 	// Format of output data ("jsonl", "csv", "bigquery"). Defaults to "jsonl"
 	OutputFormat pulumi.StringInput

@@ -172,11 +172,35 @@ func createTempModelDir(t *testing.T) string {
 	return tempDir
 }
 
+// createTempInputDataDir creates a separate temporary directory with input data files for testing
+func createTempInputDataDir(t *testing.T) string {
+	t.Helper()
+	inputDataDir, err := os.MkdirTemp("", "test-input-data-*")
+	require.NoError(t, err)
+
+	// Create test input data files (separate from model directory)
+	inputDataFile1 := filepath.Join(inputDataDir, "data1.jsonl")
+	err = os.WriteFile(inputDataFile1, []byte(`{"text": "This movie was absolutely fantastic! The acting was superb."}`), 0600)
+	require.NoError(t, err)
+
+	inputDataFile2 := filepath.Join(inputDataDir, "data2.jsonl")
+	err = os.WriteFile(inputDataFile2, []byte(`{"text": "I didn't enjoy this film at all. The storyline was confusing."}`), 0600)
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		_ = os.RemoveAll(inputDataDir) // Ignore cleanup errors in tests
+	})
+
+	return inputDataDir
+}
+
 func TestNewAIBatch_HappyPath(t *testing.T) {
 	t.Parallel()
 
 	// Create temporary model directory for testing
 	tempModelDir := createTempModelDir(t)
+	// Create separate temporary input data directory
+	tempInputDataDir := createTempInputDataDir(t)
 
 	err := pulumi.RunErr(func(ctx *pulumi.Context) error {
 		args := &gcp.AIBatchArgs{
@@ -189,8 +213,8 @@ func TestNewAIBatch_HappyPath(t *testing.T) {
 			MachineType:                     pulumi.String("n1-standard-2"),
 			JobDisplayName:                  pulumi.String("test-batch-job"),
 			ModelDisplayName:                pulumi.String("test-model"),
-			InputDataPath:                   pulumi.String("test-model/input-data.jsonl"),
-			InputFormat:                     pulumi.String("jsonl"),
+			InputDataPath:                   tempInputDataDir, // Use the separate input data directory
+			InputFormat:                     "jsonl",
 			OutputDataPath:                  pulumi.String("test-model/predictions/"),
 			OutputFormat:                    pulumi.String("jsonl"),
 			StartingReplicaCount:            pulumi.Int(1),
@@ -202,7 +226,7 @@ func TestNewAIBatch_HappyPath(t *testing.T) {
 			},
 		}
 
-		AIBatch, err := gcp.NewAIBatch(ctx, "test-vertex-endpoint", args)
+		AIBatch, err := gcp.NewAIBatch(ctx, "test-vertex-batch", args)
 		require.NoError(t, err)
 
 		// Verify basic properties
@@ -251,7 +275,7 @@ func TestNewAIBatch_HappyPath(t *testing.T) {
 
 			return nil
 		})
-		assert.Equal(t, "test-model/input-data.jsonl", <-inputDataURICh, "Input data URI should match")
+		assert.Equal(t, tempInputDataDir, <-inputDataURICh, "Input data path should match the separate input data directory")
 
 		outputDataURIPrefixCh := make(chan string, 1)
 		defer close(outputDataURIPrefixCh)
@@ -274,7 +298,7 @@ func TestNewAIBatch_HappyPath(t *testing.T) {
 
 			return nil
 		})
-		expectedEmail := "test-vertex-endpoint-model-account@test-project.iam.gserviceaccount.com"
+		expectedEmail := "test-vertex-batch-model-account@test-project.iam.gserviceaccount.com"
 		assert.Equal(t, expectedEmail, <-serviceAccountEmailCh, "Model service account email should match expected pattern")
 
 		// Verify batch prediction job
@@ -295,27 +319,38 @@ func TestNewAIBatch_HappyPath(t *testing.T) {
 		deployedModelID := <-deployedModelIDCh
 		assert.NotEmpty(t, deployedModelID, "Deployed model ID should not be empty")
 
-		// Verify uploaded model artifacts
-		uploadedArtifacts := AIBatch.GetUploadedModelArtifacts()
-		artifactsCh := make(chan []string, 1)
-		defer close(artifactsCh)
-		uploadedArtifacts.ApplyT(func(artifacts []string) error {
-			artifactsCh <- artifacts
+		// Verify uploaded files (model artifacts and input data files uploaded separately)
+		uploadedFiles := AIBatch.GetUploadedModelArtifacts()
+		filesCh := make(chan []string, 1)
+		defer close(filesCh)
+		uploadedFiles.ApplyT(func(files []string) error {
+			filesCh <- files
 
 			return nil
 		})
-		artifacts := <-artifactsCh
-		require.Len(t, artifacts, 4, "Should have uploaded exactly 4 model artifacts (model files + schema files)")
+		files := <-filesCh
+		require.Len(t, files, 6, "Should have uploaded exactly 6 files (4 model artifacts + 2 input data files)")
 
-		// Verify that each artifact starts with the bucket base path and contains the original filename
-		expectedArtifacts := []string{
+		// Verify model artifacts are in the model/ path
+		expectedModelArtifacts := []string{
 			"model/saved_model.pb",
 			"model/variables/variables.data-00000-of-00001",
 			"model/input_schema.yaml",
 			"model/output_schema.yaml",
 		}
-		for _, expectedArtifact := range expectedArtifacts {
-			assert.Contains(t, artifacts, expectedArtifact, "Should contain artifact with correct path: %s", expectedArtifact)
+		// Verify input data files are in the inputs/ path (separate from model)
+		expectedInputDataFiles := []string{
+			"inputs/data1.jsonl",
+			"inputs/data2.jsonl",
+		}
+
+		// Verify model artifacts
+		for _, expectedArtifact := range expectedModelArtifacts {
+			assert.Contains(t, files, expectedArtifact, "Should contain model artifact with correct path: %s", expectedArtifact)
+		}
+		// Verify input data files are uploaded separately
+		for _, expectedInputFile := range expectedInputDataFiles {
+			assert.Contains(t, files, expectedInputFile, "Should contain input data file uploaded separately: %s", expectedInputFile)
 		}
 
 		// Verify IAM members for batch prediction job
@@ -362,8 +397,8 @@ func TestNewAIBatch_HappyPath(t *testing.T) {
 		inputConfigURIs := <-inputConfigCh
 		require.Len(t, inputConfigURIs, 1, "Should have exactly one input URI")
 
-		expectedInputURI := "gs://test-bucket/test-model/input-data.jsonl"
-		assert.Equal(t, expectedInputURI, inputConfigURIs[0], "Input config URI should be bucket URI + input data path")
+		expectedInputURI := "gs://test-vertex-batch-vertex-model-bucket/inputs/*.jsonl"
+		assert.Equal(t, expectedInputURI, inputConfigURIs[0], "Input config URI should point to inputs directory in bucket")
 
 		// Extract output config GCS URI prefix
 		outputConfigCh := make(chan string, 1)
@@ -375,7 +410,7 @@ func TestNewAIBatch_HappyPath(t *testing.T) {
 		})
 		outputConfigURI := <-outputConfigCh
 
-		expectedOutputURI := "gs://test-bucket/test-model/predictions/"
+		expectedOutputURI := "gs://test-vertex-batch-vertex-model-bucket/test-model/predictions/"
 		assert.Equal(t, expectedOutputURI, outputConfigURI, "Output config URI should be bucket URI + output data path")
 
 		return nil
@@ -391,6 +426,8 @@ func TestNewAIBatch_WithDefaults(t *testing.T) {
 
 	// Create temporary model directory for testing
 	tempModelDir := createTempModelDir(t)
+	// Create separate temporary input data directory
+	tempInputDataDir := createTempInputDataDir(t)
 
 	err := pulumi.RunErr(func(ctx *pulumi.Context) error {
 		args := &gcp.AIBatchArgs{
@@ -401,10 +438,11 @@ func TestNewAIBatch_WithDefaults(t *testing.T) {
 			ModelPredictionInputSchemaPath:  "input_schema.yaml",
 			ModelPredictionOutputSchemaPath: "output_schema.yaml",
 			MachineType:                     pulumi.String("n1-standard-2"),
+			InputDataPath:                   tempInputDataDir, // Use the separate input data directory
 			// Using defaults for other fields
 		}
 
-		AIBatch, err := gcp.NewAIBatch(ctx, "test-vertex-endpoint", args)
+		AIBatch, err := gcp.NewAIBatch(ctx, "test-vertex-batch", args)
 		require.NoError(t, err)
 
 		// Verify defaults are applied correctly
@@ -415,7 +453,7 @@ func TestNewAIBatch_WithDefaults(t *testing.T) {
 
 			return nil
 		})
-		assert.Equal(t, "test-vertex-endpoint", <-jobDisplayNameCh, "Job display name should default to component name")
+		assert.Equal(t, "test-vertex-batch", <-jobDisplayNameCh, "Job display name should default to component name")
 
 		modelDisplayNameCh := make(chan string, 1)
 		defer close(modelDisplayNameCh)
@@ -424,7 +462,7 @@ func TestNewAIBatch_WithDefaults(t *testing.T) {
 
 			return nil
 		})
-		assert.Equal(t, "test-vertex-endpoint-model", <-modelDisplayNameCh, "Model display name should default to component name + '-model'")
+		assert.Equal(t, "test-vertex-batch-model", <-modelDisplayNameCh, "Model display name should default to component name + '-model'")
 
 		// Input / output data paths
 		inputDataURICh := make(chan string, 1)
@@ -434,7 +472,7 @@ func TestNewAIBatch_WithDefaults(t *testing.T) {
 
 			return nil
 		})
-		assert.Equal(t, "inputs/*.jsonl", <-inputDataURICh, "Input data URI should match")
+		assert.Equal(t, tempInputDataDir, <-inputDataURICh, "Input data path should match the separate input data directory")
 
 		outputDataURIPrefixCh := make(chan string, 1)
 		defer close(outputDataURIPrefixCh)
@@ -494,27 +532,38 @@ func TestNewAIBatch_WithDefaults(t *testing.T) {
 		assert.Equal(t, tempModelDir, AIBatch.ModelDir, "Model directory should match the temp directory")
 		assert.Equal(t, "model/", AIBatch.ModelBucketBasePath, "Model bucket base path should use default value")
 
-		// Verify uploaded model artifacts with defaults
-		uploadedArtifacts := AIBatch.GetUploadedModelArtifacts()
-		artifactsCh := make(chan []string, 1)
-		defer close(artifactsCh)
-		uploadedArtifacts.ApplyT(func(artifacts []string) error {
-			artifactsCh <- artifacts
+		// Verify uploaded files (model artifacts and input data files uploaded separately) with defaults
+		uploadedFiles := AIBatch.GetUploadedModelArtifacts()
+		filesCh := make(chan []string, 1)
+		defer close(filesCh)
+		uploadedFiles.ApplyT(func(files []string) error {
+			filesCh <- files
 
 			return nil
 		})
-		artifacts := <-artifactsCh
-		require.Len(t, artifacts, 4, "Should have uploaded exactly 4 model artifacts (model files + schema files)")
+		files := <-filesCh
+		require.Len(t, files, 6, "Should have uploaded exactly 6 files (4 model artifacts + 2 input data files)")
 
-		// Verify that each artifact starts with the default bucket base path and contains the original filename
-		expectedArtifacts := []string{
+		// Verify model artifacts are in the model/ path
+		expectedModelArtifacts := []string{
 			"model/saved_model.pb",
 			"model/variables/variables.data-00000-of-00001",
 			"model/input_schema.yaml",
 			"model/output_schema.yaml",
 		}
-		for _, expectedArtifact := range expectedArtifacts {
-			assert.Contains(t, artifacts, expectedArtifact, "Should contain artifact with correct path: %s", expectedArtifact)
+		// Verify input data files are in the inputs/ path (separate from model)
+		expectedInputDataFiles := []string{
+			"inputs/data1.jsonl",
+			"inputs/data2.jsonl",
+		}
+
+		// Verify model artifacts
+		for _, expectedArtifact := range expectedModelArtifacts {
+			assert.Contains(t, files, expectedArtifact, "Should contain model artifact with correct path: %s", expectedArtifact)
+		}
+		// Verify input data files are uploaded separately
+		for _, expectedInputFile := range expectedInputDataFiles {
+			assert.Contains(t, files, expectedInputFile, "Should contain input data file uploaded separately: %s", expectedInputFile)
 		}
 
 		// Verify input and output config URIs are properly constructed with bucket URI and default paths
@@ -538,8 +587,8 @@ func TestNewAIBatch_WithDefaults(t *testing.T) {
 		inputConfigURIs := <-inputConfigCh
 		require.Len(t, inputConfigURIs, 1, "Should have exactly one input URI")
 
-		expectedInputURI := "gs://test-bucket/inputs/*.jsonl"
-		assert.Equal(t, expectedInputURI, inputConfigURIs[0], "Input config URI should be bucket URI + input data path")
+		expectedInputURI := "gs://test-vertex-batch-vertex-model-bucket/inputs/*.jsonl"
+		assert.Equal(t, expectedInputURI, inputConfigURIs[0], "Input config URI should point to inputs directory in bucket")
 
 		// Extract output config GCS URI prefix
 		outputConfigCh := make(chan string, 1)
@@ -551,7 +600,7 @@ func TestNewAIBatch_WithDefaults(t *testing.T) {
 		})
 		outputConfigURI := <-outputConfigCh
 
-		expectedOutputURI := "gs://test-bucket/predictions/"
+		expectedOutputURI := "gs://test-vertex-batch-vertex-model-bucket/predictions/"
 		assert.Equal(t, expectedOutputURI, outputConfigURI, "Output config URI should be bucket URI + output data path")
 
 		return nil
@@ -634,7 +683,7 @@ func TestNewAIBatch_RequiredFields(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 			err := pulumi.RunErr(func(ctx *pulumi.Context) error {
-				_, err := gcp.NewAIBatch(ctx, "test-vertex-endpoint", testCase.args)
+				_, err := gcp.NewAIBatch(ctx, "test-vertex-batch", testCase.args)
 				if err != nil {
 					assert.Contains(t, err.Error(), testCase.expectedErr)
 

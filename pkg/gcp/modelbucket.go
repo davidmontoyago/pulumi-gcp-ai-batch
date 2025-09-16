@@ -11,8 +11,8 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
-// uploadDirectoryToModelBucket traverses a directory and uploads all files to a GCS bucket.
-func (v *AIBatch) uploadDirectoryToModelBucket(ctx *pulumi.Context, localDir, baseObjectPath string) ([]pulumi.Resource, error) {
+// uploadDirectoryToBucket traverses a directory and uploads all files to a GCS bucket.
+func (v *AIBatch) uploadDirectoryToBucket(ctx *pulumi.Context, localDir, baseObjectPath string) ([]pulumi.Resource, error) {
 	var bucketObjects []*storage.BucketObject
 
 	err := filepath.Walk(localDir, func(filePath string, info os.FileInfo, err error) error {
@@ -130,7 +130,7 @@ func (v *AIBatch) uploadModelToBucket(ctx *pulumi.Context, modelDir string, mode
 	// No luck with https://github.com/pulumi/pulumi-synced-folder /o\
 
 	// Upload the model artifacts
-	uploadedObjects, err := v.uploadDirectoryToModelBucket(ctx, modelDir, modelBucketBasePath)
+	uploadedObjects, err := v.uploadDirectoryToBucket(ctx, modelDir, modelBucketBasePath)
 	if err != nil {
 		return pulumi.StringOutput{}, nil, fmt.Errorf("failed to upload model artifacts: %w", err)
 	}
@@ -138,4 +138,42 @@ func (v *AIBatch) uploadModelToBucket(ctx *pulumi.Context, modelDir string, mode
 	modelArtifactsURI := pulumi.Sprintf("gs://%s/%s", artifactsBucket.Name, modelBucketBasePath)
 
 	return modelArtifactsURI, uploadedObjects, nil
+}
+
+// uploadInputDataToBucket uploads the input data to the bucket.
+func (v *AIBatch) uploadInputDataToBucket(ctx *pulumi.Context, inputDataDir string, inputDataBasePath string, labels map[string]string) (pulumi.StringOutput, []pulumi.Resource, error) {
+	uploadedDataObjects, err := v.uploadDirectoryToBucket(ctx, inputDataDir, inputDataBasePath)
+	if err != nil {
+		return pulumi.StringOutput{}, nil, fmt.Errorf("failed to upload input data to bucket: %w", err)
+	}
+
+	inputDataBucketURI := pulumi.Sprintf("gs://%s/%s", v.artifactsBucket.Name, inputDataBasePath)
+
+	return inputDataBucketURI, uploadedDataObjects, nil
+}
+
+// collectBucketObjectNames collects the names of the uploaded model artifacts and data objects.
+func collectBucketObjectNames(
+	uploadedModelArtifacts []pulumi.Resource,
+	uploadedDataObjects []pulumi.Resource,
+) pulumi.StringArrayOutput {
+	uploadedObjectNames := pulumi.StringArray{}
+
+	for _, resource := range uploadedModelArtifacts {
+		if bucketObject, ok := resource.(*storage.BucketObject); ok {
+			uploadedObjectNames = append(uploadedObjectNames, bucketObject.Name.ApplyT(func(name string) string {
+				return name
+			}).(pulumi.StringOutput))
+		}
+	}
+
+	for _, resource := range uploadedDataObjects {
+		if bucketObject, ok := resource.(*storage.BucketObject); ok {
+			uploadedObjectNames = append(uploadedObjectNames, bucketObject.Name.ApplyT(func(name string) string {
+				return name
+			}).(pulumi.StringOutput))
+		}
+	}
+
+	return uploadedObjectNames.ToStringArrayOutput()
 }

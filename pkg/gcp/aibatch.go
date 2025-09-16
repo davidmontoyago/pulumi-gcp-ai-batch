@@ -44,14 +44,15 @@ type AIBatch struct {
 	Subnet               pulumi.StringOutput
 	Labels               map[string]string
 
-	name string
+	inputDataLocalDir  string
+	inputDataTargetDir string
 
 	// Core resources
-	modelServiceAccount    *serviceaccount.Account
-	batchPredictionJob     *v1beta1.BatchPredictionJob
-	artifactsBucket        *storage.Bucket
-	modelDeployment        *vertexmodeldeployment.VertexModelDeployment
-	uploadedModelArtifacts pulumi.StringArrayOutput
+	modelServiceAccount *serviceaccount.Account
+	batchPredictionJob  *v1beta1.BatchPredictionJob
+	artifactsBucket     *storage.Bucket
+	modelDeployment     *vertexmodeldeployment.VertexModelDeployment
+	uploadedModelFiles  pulumi.StringArrayOutput
 
 	// IAM bindings for the model service account
 	iamMembers []*projects.IAMMember
@@ -79,6 +80,14 @@ func NewAIBatch(ctx *pulumi.Context, name string, args *AIBatchArgs, opts ...pul
 		args.ModelBucketBasePath = "model/"
 	}
 
+	// Model input data defaults
+	if args.InputDataPath == "" {
+		args.InputDataPath = "inputs" // Default to local "inputs" directory
+	}
+	if args.InputFormat == "" {
+		args.InputFormat = "jsonl"
+	}
+
 	AIBatch := &AIBatch{
 		Namer:                             namer.New(name, namer.WithReplace()),
 		Project:                           args.Project,
@@ -95,9 +104,11 @@ func NewAIBatch(ctx *pulumi.Context, name string, args *AIBatchArgs, opts ...pul
 		JobDisplayName:   setDefaultString(args.JobDisplayName, name),
 		ModelDisplayName: setDefaultString(args.ModelDisplayName, name+"-model"),
 
+		// Model input data
+		InputDataPath: pulumi.String(args.InputDataPath).ToStringOutput(),
+		InputFormat:   pulumi.String(args.InputFormat).ToStringOutput(),
+
 		// Batch prediction job specific defaults
-		InputDataPath:        setDefaultString(args.InputDataPath, "inputs/*.jsonl"),
-		InputFormat:          setDefaultString(args.InputFormat, "jsonl"),
 		OutputDataPath:       setDefaultString(args.OutputDataPath, "predictions/"),
 		OutputFormat:         setDefaultString(args.OutputFormat, "jsonl"),
 		StartingReplicaCount: setDefaultInt(args.StartingReplicaCount, 1),
@@ -109,7 +120,8 @@ func NewAIBatch(ctx *pulumi.Context, name string, args *AIBatchArgs, opts ...pul
 		Subnet:               setDefaultString(args.Subnet, ""),
 		Labels:               args.Labels,
 
-		name: name,
+		inputDataLocalDir:  args.InputDataPath,
+		inputDataTargetDir: "inputs", // Upload input data to a separate "inputs" directory in bucket
 	}
 
 	err := ctx.RegisterComponentResource("pulumi-ai-batch:gcp:AIBatch", name, AIBatch, opts...)
@@ -134,7 +146,7 @@ func NewAIBatch(ctx *pulumi.Context, name string, args *AIBatchArgs, opts ...pul
 		"vertex_ai_batch_model_deployment_id":                  AIBatch.modelDeployment.ID(),
 		"vertex_ai_batch_deployed_model_id":                    AIBatch.modelDeployment.DeployedModelId,
 		"vertex_ai_batch_artifacts_bucket_name":                AIBatch.artifactsBucket.Name,
-		"vertex_ai_batch_uploaded_model_files":                 AIBatch.uploadedModelArtifacts,
+		"vertex_ai_batch_uploaded_model_files":                 AIBatch.uploadedModelFiles,
 		"vertex_ai_batch_model_prediction_input_schema_uri":    AIBatch.modelDeployment.ModelPredictionInputSchemaUri,
 		"vertex_ai_batch_model_prediction_output_schema_uri":   AIBatch.modelDeployment.ModelPredictionOutputSchemaUri,
 		"vertex_ai_batch_model_prediction_behavior_schema_uri": AIBatch.modelDeployment.ModelPredictionBehaviorSchemaUri,
@@ -165,41 +177,29 @@ func (v *AIBatch) deploy(ctx *pulumi.Context, args *AIBatchArgs) error {
 	v.iamMembers = iamMembers
 
 	// Upload model artifacts (including schemas) to bucket
-	modelArtifactsURI, uploadedObjects, err := v.uploadModelToBucket(ctx, args.ModelDir, args.ModelBucketBasePath, args.Labels)
+	modelArtifactsURI, uploadedModelArtifacts, err := v.uploadModelToBucket(ctx, args.ModelDir, args.ModelBucketBasePath, args.Labels)
 	if err != nil {
 		return fmt.Errorf("failed to upload model to bucket: %w", err)
 	}
 
-	// Collect uploaded object names for tracking
-	uploadedObjectNames := pulumi.StringArray{}
-	for _, resource := range uploadedObjects {
-		if bucketObject, ok := resource.(*storage.BucketObject); ok {
-			uploadedObjectNames = append(uploadedObjectNames, bucketObject.Name.ApplyT(func(name string) string {
-				return name
-			}).(pulumi.StringOutput))
-		}
+	// Upload input data to bucket
+	inputDataBucketURI, uploadedDataObjects, err := v.uploadInputDataToBucket(ctx, v.inputDataLocalDir, v.inputDataTargetDir, args.Labels)
+	if err != nil {
+		return fmt.Errorf("failed to upload input data to bucket: %w", err)
 	}
-	v.uploadedModelArtifacts = uploadedObjectNames.ToStringArrayOutput()
+
+	// Collect uploaded data file names for outputs
+	v.uploadedModelFiles = collectBucketObjectNames(uploadedModelArtifacts, uploadedDataObjects)
 
 	// Deploy the model to get a model ID for the batch prediction job
-	modelDeployment, err := v.deployModel(ctx, modelArtifactsURI, modelServiceAccount.Email, uploadedObjects)
+	modelDeployment, err := v.deployModel(ctx, modelArtifactsURI, modelServiceAccount.Email, uploadedModelArtifacts)
 	if err != nil {
 		return fmt.Errorf("failed to deploy model /o\\: %w", err)
 	}
 	v.modelDeployment = modelDeployment
 
-	// Set default output URI prefix to same bucket under /predictions if not specified
-	v.OutputDataPath = pulumi.All(v.OutputDataPath, modelArtifactsURI).ApplyT(func(args []interface{}) string {
-		uri := args[0].(string)
-		bucketURI := args[1].(string)
-		if uri == "" {
-			return fmt.Sprintf("%s/predictions", bucketURI)
-		}
-		return uri
-	}).(pulumi.StringOutput)
-
 	// Create the batch prediction job
-	batchPredictionJob, err := v.createBatchPredictionJob(ctx, modelDeployment, modelServiceAccount.Email)
+	batchPredictionJob, err := v.createBatchPredictionJob(ctx, modelDeployment, inputDataBucketURI, modelServiceAccount.Email)
 	if err != nil {
 		return fmt.Errorf("failed to create batch prediction job: %w", err)
 	}
@@ -242,13 +242,17 @@ func (v *AIBatch) deployModel(ctx *pulumi.Context, modelArtifactsURI pulumi.Stri
 }
 
 // createBatchPredictionJob creates a Vertex AI Batch Prediction Job.
-func (v *AIBatch) createBatchPredictionJob(ctx *pulumi.Context, modelDeployment *vertexmodeldeployment.VertexModelDeployment, serviceAccountEmail pulumi.StringOutput) (*v1beta1.BatchPredictionJob, error) {
+func (v *AIBatch) createBatchPredictionJob(ctx *pulumi.Context,
+	modelDeployment *vertexmodeldeployment.VertexModelDeployment,
+	inputDataBucketURI pulumi.StringOutput,
+	serviceAccountEmail pulumi.StringOutput) (*v1beta1.BatchPredictionJob, error) {
+
 	// Construct the input config
 	inputConfig := &v1beta1.GoogleCloudAiplatformV1beta1BatchPredictionJobInputConfigArgs{
 		InstancesFormat: v.InputFormat,
 		GcsSource: &v1beta1.GoogleCloudAiplatformV1beta1GcsSourceArgs{
 			Uris: pulumi.StringArray{
-				pulumi.Sprintf("%s/%s", modelDeployment.ModelArtifactsBucketUri, v.InputDataPath),
+				pulumi.Sprintf("%s/*.jsonl", inputDataBucketURI),
 			},
 		},
 	}
@@ -257,7 +261,7 @@ func (v *AIBatch) createBatchPredictionJob(ctx *pulumi.Context, modelDeployment 
 	outputConfig := &v1beta1.GoogleCloudAiplatformV1beta1BatchPredictionJobOutputConfigArgs{
 		PredictionsFormat: v.OutputFormat,
 		GcsDestination: &v1beta1.GoogleCloudAiplatformV1beta1GcsDestinationArgs{
-			OutputUriPrefix: pulumi.Sprintf("%s/%s", modelDeployment.ModelArtifactsBucketUri, v.OutputDataPath),
+			OutputUriPrefix: pulumi.Sprintf("gs://%s/%s", v.artifactsBucket.Name, v.OutputDataPath),
 		},
 	}
 
@@ -329,5 +333,5 @@ func (v *AIBatch) GetIAMMembers() []*projects.IAMMember {
 
 // GetUploadedModelArtifacts returns the array of uploaded model artifact names.
 func (v *AIBatch) GetUploadedModelArtifacts() pulumi.StringArrayOutput {
-	return v.uploadedModelArtifacts
+	return v.uploadedModelFiles
 }
