@@ -22,7 +22,7 @@ type AIBatchArgs struct {
 	ModelPredictionOutputSchemaPath string
 	// Path to the YAML file within ModelDir with the model prediction behavior schema. Not required depending on the model.
 	ModelPredictionBehaviorSchemaPath string
-	// Base path to the model artifacts in the bucket. Defaults to "model/".
+	// Base path to the model artifacts in the bucket. Defaults to "model".
 	ModelBucketBasePath string
 	// Machine type for the batch prediction job (e.g., "n1-standard-2", "n1-standard-4").
 	MachineType pulumi.StringInput
@@ -30,6 +30,8 @@ type AIBatchArgs struct {
 	JobDisplayName pulumi.StringInput
 	// Display name for the model (optional, defaults to component name + "-model")
 	ModelDisplayName pulumi.StringInput
+	// If true, the model Service Account is granted access to the Artifact Registry repository in ModelImageURL.
+	EnablePrivateRegistryAccess bool
 
 	// Batch prediction job specific fields
 
@@ -59,9 +61,10 @@ type AIBatchArgs struct {
 	BatchSize pulumi.IntInput
 
 	// Compute resource specifications
-	// Type of accelerator (e.g., "NVIDIA_TESLA_T4"). Optional
+	// Type of accelerator (e.g., "NVIDIA_TESLA_T4"). Optional.
+	// Defaults to "ACCELERATOR_TYPE_UNSPECIFIED"
 	AcceleratorType pulumi.StringInput
-	// Number of accelerators. Optional
+	// Number of accelerators. Defaults to 1
 	AcceleratorCount pulumi.IntInput
 
 	// Additional configuration

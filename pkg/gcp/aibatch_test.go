@@ -378,7 +378,7 @@ func TestNewAIBatch_HappyPath(t *testing.T) {
 
 		// verify that the model directory path is correctly set
 		assert.Equal(t, tempModelDir, AIBatch.ModelDir, "Model directory should match the temp directory")
-		assert.Equal(t, "model/", AIBatch.ModelBucketBasePath, "Model bucket base path should use default value")
+		assert.Equal(t, "model", AIBatch.ModelBucketBasePath, "Model bucket base path should use default value")
 
 		// Verify input and output config URIs are properly constructed with bucket URI and paths
 
@@ -528,9 +528,18 @@ func TestNewAIBatch_WithDefaults(t *testing.T) {
 		})
 		assert.Equal(t, 0, <-batchSizeCh, "Batch size should default to 0 (auto-configure)")
 
+		acceleratorTypeCh := make(chan string, 1)
+		defer close(acceleratorTypeCh)
+		AIBatch.AcceleratorType.ApplyT(func(accelType string) error {
+			acceleratorTypeCh <- accelType
+
+			return nil
+		})
+		assert.Equal(t, "ACCELERATOR_TYPE_UNSPECIFIED", <-acceleratorTypeCh, "Accelerator type should default to 'ACCELERATOR_TYPE_UNSPECIFIED'")
+
 		// Verify bucket operations with defaults
 		assert.Equal(t, tempModelDir, AIBatch.ModelDir, "Model directory should match the temp directory")
-		assert.Equal(t, "model/", AIBatch.ModelBucketBasePath, "Model bucket base path should use default value")
+		assert.Equal(t, "model", AIBatch.ModelBucketBasePath, "Model bucket base path should use default value")
 
 		// Verify uploaded files (model artifacts and input data files uploaded separately) with defaults
 		uploadedFiles := AIBatch.GetUploadedModelArtifacts()

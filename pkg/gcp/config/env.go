@@ -21,6 +21,7 @@ type Config struct {
 	ModelPredictionBehaviorSchemaPath string `envconfig:"MODEL_PREDICTION_BEHAVIOR_SCHEMA_PATH" default:""`
 	ModelBucketBasePath               string `envconfig:"MODEL_BUCKET_BASE_PATH" default:"model/"`
 	ModelImageURL                     string `envconfig:"MODEL_IMAGE_URL" default:"us-docker.pkg.dev/vertex-ai/prediction/tf2-cpu.2-15:latest"`
+	EnablePrivateRegistryAccess       bool   `envconfig:"ENABLE_PRIVATE_REGISTRY_ACCESS" default:"false"`
 	MachineType                       string `envconfig:"MACHINE_TYPE" default:"n1-standard-2"`
 	JobDisplayName                    string `envconfig:"JOB_DISPLAY_NAME" default:""`
 	ModelDisplayName                  string `envconfig:"MODEL_DISPLAY_NAME" default:""`
@@ -33,8 +34,8 @@ type Config struct {
 	StartingReplicaCount int    `envconfig:"STARTING_REPLICA_COUNT" default:"1"`
 	MaxReplicaCount      int    `envconfig:"MAX_REPLICA_COUNT" default:"3"`
 	BatchSize            int    `envconfig:"BATCH_SIZE" default:"0"`
-	AcceleratorType      string `envconfig:"ACCELERATOR_TYPE" default:""`
-	AcceleratorCount     int    `envconfig:"ACCELERATOR_COUNT" default:"0"`
+	AcceleratorType      string `envconfig:"ACCELERATOR_TYPE" default:"ACCELERATOR_TYPE_UNSPECIFIED"`
+	AcceleratorCount     int    `envconfig:"ACCELERATOR_COUNT" default:"1"`
 	ServiceAccount       string `envconfig:"SERVICE_ACCOUNT" default:""`
 	Network              string `envconfig:"NETWORK" default:""`
 	Subnet               string `envconfig:"SUBNET" default:""`
@@ -59,6 +60,7 @@ func LoadConfig() (*Config, error) {
 	log.Printf("  Model Prediction Behavior Schema Path: %s", config.ModelPredictionBehaviorSchemaPath)
 	log.Printf("  Model Bucket Base Path: %s", config.ModelBucketBasePath)
 	log.Printf("  Model Image URL: %s", config.ModelImageURL)
+	log.Printf("  Enable Private Registry Access: %t", config.EnablePrivateRegistryAccess)
 	log.Printf("  Machine Type: %s", config.MachineType)
 	log.Printf("  Job Display Name: %s", config.JobDisplayName)
 	log.Printf("  Model Display Name: %s", config.ModelDisplayName)
@@ -89,6 +91,7 @@ func (c *Config) ToAIBatchArgs() *gcp.AIBatchArgs {
 		ModelBucketBasePath:             c.ModelBucketBasePath,
 		ModelImageURL:                   pulumi.String(c.ModelImageURL),
 		MachineType:                     pulumi.String(c.MachineType),
+		EnablePrivateRegistryAccess:     c.EnablePrivateRegistryAccess,
 
 		// Batch prediction job specific fields
 		InputDataPath:        c.InputDataURI,

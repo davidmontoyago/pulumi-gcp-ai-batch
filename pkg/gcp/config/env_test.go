@@ -208,8 +208,8 @@ func TestLoadConfig_Defaults(t *testing.T) {
 	assert.Equal(t, 1, cfg.StartingReplicaCount)
 	assert.Equal(t, 3, cfg.MaxReplicaCount)
 	assert.Equal(t, 0, cfg.BatchSize)
-	assert.Equal(t, "", cfg.AcceleratorType)
-	assert.Equal(t, 0, cfg.AcceleratorCount)
+	assert.Equal(t, "ACCELERATOR_TYPE_UNSPECIFIED", cfg.AcceleratorType)
+	assert.Equal(t, 1, cfg.AcceleratorCount)
 	assert.Equal(t, "", cfg.Network)
 	assert.Equal(t, "", cfg.Subnet)
 }

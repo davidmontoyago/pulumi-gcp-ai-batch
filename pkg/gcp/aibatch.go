@@ -6,6 +6,7 @@ import (
 
 	namer "github.com/davidmontoyago/commodity-namer"
 	vertexmodeldeployment "github.com/davidmontoyago/pulumi-gcp-vertex-model-deployment/sdk/go/pulumi-gcp-vertex-model-deployment/resources"
+	"github.com/pulumi/pulumi-gcp/sdk/v8/go/gcp/artifactregistry"
 	"github.com/pulumi/pulumi-gcp/sdk/v8/go/gcp/projects"
 	"github.com/pulumi/pulumi-gcp/sdk/v8/go/gcp/serviceaccount"
 	"github.com/pulumi/pulumi-gcp/sdk/v8/go/gcp/storage"
@@ -55,7 +56,8 @@ type AIBatch struct {
 	uploadedModelFiles  pulumi.StringArrayOutput
 
 	// IAM bindings for the model service account
-	iamMembers []*projects.IAMMember
+	iamMembers    []*projects.IAMMember
+	repoIamMember *artifactregistry.RepositoryIamMember
 }
 
 // NewAIBatch creates a new AIBatch instance with the provided configuration.
@@ -77,7 +79,7 @@ func NewAIBatch(ctx *pulumi.Context, name string, args *AIBatchArgs, opts ...pul
 	}
 
 	if args.ModelBucketBasePath == "" {
-		args.ModelBucketBasePath = "model/"
+		args.ModelBucketBasePath = "model"
 	}
 
 	// Model input data defaults
@@ -114,8 +116,8 @@ func NewAIBatch(ctx *pulumi.Context, name string, args *AIBatchArgs, opts ...pul
 		StartingReplicaCount: setDefaultInt(args.StartingReplicaCount, 1),
 		MaxReplicaCount:      setDefaultInt(args.MaxReplicaCount, 3),
 		BatchSize:            setDefaultInt(args.BatchSize, 0), // 0 means auto-configure
-		AcceleratorType:      setDefaultString(args.AcceleratorType, ""),
-		AcceleratorCount:     setDefaultInt(args.AcceleratorCount, 0),
+		AcceleratorType:      setDefaultString(args.AcceleratorType, "ACCELERATOR_TYPE_UNSPECIFIED"),
+		AcceleratorCount:     setDefaultInt(args.AcceleratorCount, 1),
 		Network:              setDefaultString(args.Network, ""),
 		Subnet:               setDefaultString(args.Subnet, ""),
 		Labels:               args.Labels,
@@ -176,6 +178,13 @@ func (v *AIBatch) deploy(ctx *pulumi.Context, args *AIBatchArgs) error {
 	}
 	v.iamMembers = iamMembers
 
+	if args.EnablePrivateRegistryAccess {
+		v.repoIamMember, err = v.grantRegistryIAMAccess(ctx, modelServiceAccount.Email)
+		if err != nil {
+			return fmt.Errorf("failed to grant registry IAM access: %w", err)
+		}
+	}
+
 	// Upload model artifacts (including schemas) to bucket
 	modelArtifactsURI, uploadedModelArtifacts, err := v.uploadModelToBucket(ctx, args.ModelDir, args.ModelBucketBasePath, args.Labels)
 	if err != nil {
@@ -218,12 +227,9 @@ func (v *AIBatch) deployModel(ctx *pulumi.Context, modelArtifactsURI pulumi.Stri
 		ModelImageUrl:                  v.ModelImageURL,
 		ModelPredictionInputSchemaUri:  pulumi.Sprintf("%s/%s", modelArtifactsURI, v.ModelPredictionInputSchemaPath),
 		ModelPredictionOutputSchemaUri: pulumi.Sprintf("%s/%s", modelArtifactsURI, v.ModelPredictionOutputSchemaPath),
-		MachineType:                    v.MachineType,
-		MinReplicas:                    v.StartingReplicaCount,
-		MaxReplicas:                    v.MaxReplicaCount,
 		ServiceAccount:                 serviceAccountEmail,
-		// For batch prediction jobs, we don't need an endpoint, just the model
-		EndpointId: pulumi.String(""),
+		PredictRoute:                   pulumi.String("/predict"),
+		HealthRoute:                    pulumi.String("/health"),
 	}
 	if v.ModelPredictionBehaviorSchemaPath != "" {
 		modelDeploymentArgs.ModelPredictionBehaviorSchemaUri = pulumi.Sprintf("%s/%s", modelArtifactsURI, v.ModelPredictionBehaviorSchemaPath)
@@ -270,11 +276,8 @@ func (v *AIBatch) createBatchPredictionJob(ctx *pulumi.Context,
 		MachineSpec: &v1beta1.GoogleCloudAiplatformV1beta1MachineSpecArgs{
 			MachineType:      v.MachineType,
 			AcceleratorCount: v.AcceleratorCount,
-			AcceleratorType: v.AcceleratorType.ToStringOutput().ApplyT(func(accelType string) v1beta1.GoogleCloudAiplatformV1beta1MachineSpecAcceleratorType {
-				if accelType != "" {
-					return v1beta1.GoogleCloudAiplatformV1beta1MachineSpecAcceleratorType(accelType)
-				}
-				return ""
+			AcceleratorType: v.AcceleratorType.ApplyT(func(accelType string) v1beta1.GoogleCloudAiplatformV1beta1MachineSpecAcceleratorType {
+				return v1beta1.GoogleCloudAiplatformV1beta1MachineSpecAcceleratorType(accelType)
 			}).(v1beta1.GoogleCloudAiplatformV1beta1MachineSpecAcceleratorTypeOutput),
 		},
 		StartingReplicaCount: v.StartingReplicaCount,
@@ -285,7 +288,7 @@ func (v *AIBatch) createBatchPredictionJob(ctx *pulumi.Context,
 		Project:            pulumi.String(v.Project),
 		Location:           pulumi.String(v.Region),
 		DisplayName:        v.JobDisplayName,
-		Model:              modelDeployment.DeployedModelId, // Use the deployed model ID
+		Model:              modelDeployment.ModelName, // Use the deployed model name
 		InputConfig:        inputConfig,
 		OutputConfig:       outputConfig,
 		DedicatedResources: dedicatedResources,
@@ -296,11 +299,16 @@ func (v *AIBatch) createBatchPredictionJob(ctx *pulumi.Context,
 		Labels: pulumi.ToStringMap(v.Labels),
 	}
 
+	dependencies := []pulumi.Resource{v.artifactsBucket, modelDeployment}
+	if v.repoIamMember != nil {
+		dependencies = append(dependencies, v.repoIamMember)
+	}
+
 	batchPredictionJob, err := v1beta1.NewBatchPredictionJob(ctx,
 		v.NewResourceName("batch-prediction-job", "", 63),
 		batchJobArgs,
 		pulumi.Parent(v),
-		pulumi.DependsOn([]pulumi.Resource{modelDeployment}),
+		pulumi.DependsOn(dependencies),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create batch prediction job: %w", err)
