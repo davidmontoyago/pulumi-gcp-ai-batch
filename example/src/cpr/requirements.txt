@@ -1,0 +1,5 @@
+# src/cpr/requirements.txt
+torch>=2.4.1
+transformers>=4.46.3
+google-cloud-aiplatform>=1.90.0
+fastapi>=0.116.2
