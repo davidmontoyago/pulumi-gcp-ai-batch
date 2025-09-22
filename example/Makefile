@@ -1,10 +1,15 @@
-MODEL_SERVER_IMAGE_NAME := pytorch-cpu.1-12-bert-with-cpr:latest
+MODEL_SERVER_IMAGE_NAME := pytorch-cpu.1-12-bert-with-cpr
 
 .PHONY: build deploy clean
 
 clean:
 	go work sync
 	go mod tidy
+
+pulumi-clean:
+	rm -rf ./sdk/*
+	rm -rf ./build/*
+	pulumi plugin rm --all -y
 
 build: clean
 	go build -o ./build/ ./...

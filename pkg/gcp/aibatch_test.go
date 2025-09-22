@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -77,7 +78,10 @@ additionalProperties: false
 	`
 )
 
-type AIBatchMocks struct{}
+type AIBatchMocks struct {
+	mockFailedJob bool
+	t             *testing.T
+}
 
 func (m *AIBatchMocks) NewResource(args pulumi.MockResourceArgs) (string, resource.PropertyMap, error) {
 	outputs := map[string]interface{}{}
@@ -104,8 +108,11 @@ func (m *AIBatchMocks) NewResource(args pulumi.MockResourceArgs) (string, resour
 		outputs["name"] = args.Name
 		outputs["project"] = testProjectName
 		outputs["location"] = testRegion
-		outputs["displayName"] = args.Name
-		outputs["state"] = "JOB_STATE_SUCCEEDED"
+		if m.mockFailedJob {
+			outputs["state"] = "JOB_STATE_FAILED"
+		} else {
+			outputs["state"] = "JOB_STATE_SUCCEEDED"
+		}
 		outputs["createTime"] = "2023-01-01T00:00:00Z"
 		// Expected outputs: name, project, location, displayName, state, createTime
 	case "gcp:storage/bucket:Bucket":
@@ -414,7 +421,7 @@ func TestNewAIBatch_HappyPath(t *testing.T) {
 		assert.Equal(t, expectedOutputURI, outputConfigURI, "Output config URI should be bucket URI + output data path")
 
 		return nil
-	}, pulumi.WithMocks("project", "stack", &AIBatchMocks{}))
+	}, pulumi.WithMocks("project", "stack", &AIBatchMocks{t: t}))
 
 	if err != nil {
 		t.Fatalf("Pulumi WithMocks failed: %v", err)
@@ -613,11 +620,92 @@ func TestNewAIBatch_WithDefaults(t *testing.T) {
 		assert.Equal(t, expectedOutputURI, outputConfigURI, "Output config URI should be bucket URI + output data path")
 
 		return nil
-	}, pulumi.WithMocks("project", "stack", &AIBatchMocks{}))
+	}, pulumi.WithMocks("project", "stack", &AIBatchMocks{t: t}))
 
 	if err != nil {
 		t.Fatalf("Pulumi WithMocks failed: %v", err)
 	}
+}
+
+func TestNewAIBatch_RetainJobOnDeleteAndUniqueName(t *testing.T) {
+	t.Parallel()
+
+	tempModelDir := createTempModelDir(t)
+	tempInputDataDir := createTempInputDataDir(t)
+
+	var firstJobName string
+
+	// First run: RetainJobOnDelete = true
+	retainOnDeleteRun1 := true
+	err := pulumi.RunErr(func(ctx *pulumi.Context) error {
+
+		// Ensure some time gap at the end to simulate different runs
+		defer time.Sleep(1 * time.Millisecond)
+
+		args := &gcp.AIBatchArgs{
+			Project:                         testProjectName,
+			Region:                          testRegion,
+			ModelDir:                        tempModelDir,
+			ModelPredictionInputSchemaPath:  "input_schema.yaml",
+			ModelPredictionOutputSchemaPath: "output_schema.yaml",
+			InputDataPath:                   tempInputDataDir,
+			RetainJobOnDelete:               retainOnDeleteRun1,
+		}
+
+		aiBatch, err := gcp.NewAIBatch(ctx, "test-retain-job", args)
+		require.NoError(t, err)
+
+		job := aiBatch.GetBatchPredictionJob()
+		require.NotNil(t, job)
+
+		// Capture the job name
+		jobNameCh := make(chan string, 1)
+		defer close(jobNameCh)
+		job.Name.ApplyT(func(name string) error {
+			jobNameCh <- name
+			return nil
+		})
+		firstJobName = <-jobNameCh
+		assert.NotEmpty(t, firstJobName, "Job name should not be empty on first run")
+		assert.Contains(t, firstJobName, "test-retain-job-", "Job name should be prefixed with the component name")
+
+		return nil
+	}, pulumi.WithMocks("project", "stack", &AIBatchMocks{t: t}))
+	require.NoError(t, err)
+
+	retainOnDeleteRun2 := false
+	err = pulumi.RunErr(func(ctx *pulumi.Context) error {
+		args := &gcp.AIBatchArgs{
+			Project:                         testProjectName,
+			Region:                          testRegion,
+			ModelDir:                        tempModelDir,
+			ModelPredictionInputSchemaPath:  "input_schema.yaml",
+			ModelPredictionOutputSchemaPath: "output_schema.yaml",
+			InputDataPath:                   tempInputDataDir,
+			RetainJobOnDelete:               retainOnDeleteRun2,
+		}
+
+		// same component name to test a subsequent pulumi up op
+		aiBatch, err := gcp.NewAIBatch(ctx, "test-retain-job", args)
+		require.NoError(t, err)
+
+		job := aiBatch.GetBatchPredictionJob()
+		require.NotNil(t, job)
+
+		// Capture and compare the job name
+		jobNameCh := make(chan string, 1)
+		defer close(jobNameCh)
+		job.Name.ApplyT(func(name string) error {
+			jobNameCh <- name
+			return nil
+		})
+		secondJobName := <-jobNameCh
+		assert.NotEmpty(t, secondJobName, "Job name should not be empty on second run")
+		assert.NotEqual(t, firstJobName, secondJobName, "Job name should be unique on each run")
+
+		return nil
+	}, pulumi.WithMocks("project", "stack", &AIBatchMocks{t: t}))
+	require.NoError(t, err)
 }
 
 func TestNewAIBatch_RequiredFields(t *testing.T) {
@@ -701,7 +789,7 @@ func TestNewAIBatch_RequiredFields(t *testing.T) {
 				t.Errorf("Expected error containing '%s', but got no error", testCase.expectedErr)
 
 				return nil
-			}, pulumi.WithMocks("project", "stack", &AIBatchMocks{}))
+			}, pulumi.WithMocks("project", "stack", &AIBatchMocks{t: t}))
 
 			// We expect the test to complete successfully even when the component creation fails
 			assert.NoError(t, err, "Pulumi test should not fail")

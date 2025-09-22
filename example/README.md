@@ -6,6 +6,7 @@ The custom prediction routine is a BERT predictor for sentiment analysis. It's p
 
 See:
 - https://cloud.google.com/blog/topics/developers-practitioners/simplify-model-serving-custom-prediction-routines-vertex-ai
+- https://github.com/googleapis/python-aiplatform/blob/18a55590c5679b8ea7536c4c3c73566ba006bf36/google/cloud/aiplatform/prediction/model_server.py#L48
 
 ## Deploy
 

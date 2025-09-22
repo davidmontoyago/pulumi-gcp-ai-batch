@@ -3,6 +3,7 @@ package gcp
 
 import (
 	"fmt"
+	"time"
 
 	namer "github.com/davidmontoyago/commodity-namer"
 	vertexmodeldeployment "github.com/davidmontoyago/pulumi-gcp-vertex-model-deployment/sdk/go/pulumi-gcp-vertex-model-deployment/resources"
@@ -48,12 +49,15 @@ type AIBatch struct {
 	inputDataLocalDir  string
 	inputDataTargetDir string
 
+	retainJobOnDelete bool
+
 	// Core resources
 	modelServiceAccount *serviceaccount.Account
 	batchPredictionJob  *v1beta1.BatchPredictionJob
 	artifactsBucket     *storage.Bucket
 	modelDeployment     *vertexmodeldeployment.VertexModelDeployment
 	uploadedModelFiles  pulumi.StringArrayOutput
+	jobState            pulumi.StringOutput
 
 	// IAM bindings for the model service account
 	iamMembers    []*projects.IAMMember
@@ -122,8 +126,13 @@ func NewAIBatch(ctx *pulumi.Context, name string, args *AIBatchArgs, opts ...pul
 		Subnet:               setDefaultString(args.Subnet, ""),
 		Labels:               args.Labels,
 
+		// Initial job state until we create the job
+		jobState: pulumi.String("").ToStringOutput(),
+
 		inputDataLocalDir:  args.InputDataPath,
 		inputDataTargetDir: "inputs", // Upload input data to a separate "inputs" directory in bucket
+
+		retainJobOnDelete: args.RetainJobOnDelete,
 	}
 
 	err := ctx.RegisterComponentResource("pulumi-ai-batch:gcp:AIBatch", name, AIBatch, opts...)
@@ -212,7 +221,9 @@ func (v *AIBatch) deploy(ctx *pulumi.Context, args *AIBatchArgs) error {
 	if err != nil {
 		return fmt.Errorf("failed to create batch prediction job: %w", err)
 	}
+	// track the job state to retry on failure
 	v.batchPredictionJob = batchPredictionJob
+	v.jobState = batchPredictionJob.State
 
 	return nil
 }
@@ -228,8 +239,9 @@ func (v *AIBatch) deployModel(ctx *pulumi.Context, modelArtifactsURI pulumi.Stri
 		ModelPredictionInputSchemaUri:  pulumi.Sprintf("%s/%s", modelArtifactsURI, v.ModelPredictionInputSchemaPath),
 		ModelPredictionOutputSchemaUri: pulumi.Sprintf("%s/%s", modelArtifactsURI, v.ModelPredictionOutputSchemaPath),
 		ServiceAccount:                 serviceAccountEmail,
-		PredictRoute:                   pulumi.String("/predict"),
-		HealthRoute:                    pulumi.String("/health"),
+		// TODO make me configurable
+		PredictRoute: pulumi.String("/predict"),
+		HealthRoute:  pulumi.String("/health"),
 	}
 	if v.ModelPredictionBehaviorSchemaPath != "" {
 		modelDeploymentArgs.ModelPredictionBehaviorSchemaUri = pulumi.Sprintf("%s/%s", modelArtifactsURI, v.ModelPredictionBehaviorSchemaPath)
@@ -304,11 +316,15 @@ func (v *AIBatch) createBatchPredictionJob(ctx *pulumi.Context,
 		dependencies = append(dependencies, v.repoIamMember)
 	}
 
+	// every pulumi up operation is a new launch
+	jobName := fmt.Sprintf("%s-%d", v.NewResourceName("batch-prediction-job", "", 63), time.Now().UnixMilli())
+
 	batchPredictionJob, err := v1beta1.NewBatchPredictionJob(ctx,
-		v.NewResourceName("batch-prediction-job", "", 63),
+		jobName,
 		batchJobArgs,
 		pulumi.Parent(v),
 		pulumi.DependsOn(dependencies),
+		pulumi.RetainOnDelete(v.retainJobOnDelete),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create batch prediction job: %w", err)

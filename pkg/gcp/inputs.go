@@ -32,6 +32,11 @@ type AIBatchArgs struct {
 	ModelDisplayName pulumi.StringInput
 	// If true, the model Service Account is granted access to the Artifact Registry repository in ModelImageURL.
 	EnablePrivateRegistryAccess bool
+	// Every pulumi up operation is a new job launch with a unique name.
+	// Set this to true to retain jobs in between runs, and ensure old jobs are
+	// eventually cleaned up.
+	// If not set, the job will be replaced regardless of the state.
+	RetainJobOnDelete bool
 
 	// Batch prediction job specific fields
 
