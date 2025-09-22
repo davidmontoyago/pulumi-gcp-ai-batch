@@ -42,8 +42,6 @@ type AIBatch struct {
 	BatchSize            pulumi.IntOutput
 	AcceleratorType      pulumi.StringOutput
 	AcceleratorCount     pulumi.IntOutput
-	Network              pulumi.StringOutput
-	Subnet               pulumi.StringOutput
 	Labels               map[string]string
 
 	inputDataLocalDir  string
@@ -122,8 +120,6 @@ func NewAIBatch(ctx *pulumi.Context, name string, args *AIBatchArgs, opts ...pul
 		BatchSize:            setDefaultInt(args.BatchSize, 0), // 0 means auto-configure
 		AcceleratorType:      setDefaultString(args.AcceleratorType, "ACCELERATOR_TYPE_UNSPECIFIED"),
 		AcceleratorCount:     setDefaultInt(args.AcceleratorCount, 1),
-		Network:              setDefaultString(args.Network, ""),
-		Subnet:               setDefaultString(args.Subnet, ""),
 		Labels:               args.Labels,
 
 		// Initial job state until we create the job

@@ -37,8 +37,7 @@ type Config struct {
 	AcceleratorType      string `envconfig:"ACCELERATOR_TYPE" default:"ACCELERATOR_TYPE_UNSPECIFIED"`
 	AcceleratorCount     int    `envconfig:"ACCELERATOR_COUNT" default:"1"`
 	ServiceAccount       string `envconfig:"SERVICE_ACCOUNT" default:""`
-	Network              string `envconfig:"NETWORK" default:""`
-	Subnet               string `envconfig:"SUBNET" default:""`
+	RetainJobOnDelete    bool   `envconfig:"RETAIN_JOB_ON_DELETE" default:"false"`
 }
 
 // LoadConfig loads configuration from environment variables
@@ -74,8 +73,7 @@ func LoadConfig() (*Config, error) {
 	log.Printf("  Accelerator Type: %s", config.AcceleratorType)
 	log.Printf("  Accelerator Count: %d", config.AcceleratorCount)
 	log.Printf("  Service Account: %s", config.ServiceAccount)
-	log.Printf("  Network: %s", config.Network)
-	log.Printf("  Subnet: %s", config.Subnet)
+	log.Printf("  Retain Job On Delete: %t", config.RetainJobOnDelete)
 
 	return &config, nil
 }
@@ -103,8 +101,7 @@ func (c *Config) ToAIBatchArgs() *gcp.AIBatchArgs {
 		BatchSize:            pulumi.Int(c.BatchSize),
 		AcceleratorType:      pulumi.String(c.AcceleratorType),
 		AcceleratorCount:     pulumi.Int(c.AcceleratorCount),
-		Network:              pulumi.String(c.Network),
-		Subnet:               pulumi.String(c.Subnet),
+		RetainJobOnDelete:    c.RetainJobOnDelete,
 	}
 
 	// Set optional fields only if provided

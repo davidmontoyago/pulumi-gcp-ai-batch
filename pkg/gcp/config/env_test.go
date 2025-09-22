@@ -181,8 +181,7 @@ func TestLoadConfig_Defaults(t *testing.T) {
 	_ = os.Unsetenv("BATCH_SIZE")
 	_ = os.Unsetenv("ACCELERATOR_TYPE")
 	_ = os.Unsetenv("ACCELERATOR_COUNT")
-	_ = os.Unsetenv("NETWORK")
-	_ = os.Unsetenv("SUBNET")
+	_ = os.Unsetenv("RETAIN_JOB_ON_DELETE")
 
 	cfg, err := config.LoadConfig()
 	require.NoError(t, err)
@@ -210,8 +209,7 @@ func TestLoadConfig_Defaults(t *testing.T) {
 	assert.Equal(t, 0, cfg.BatchSize)
 	assert.Equal(t, "ACCELERATOR_TYPE_UNSPECIFIED", cfg.AcceleratorType)
 	assert.Equal(t, 1, cfg.AcceleratorCount)
-	assert.Equal(t, "", cfg.Network)
-	assert.Equal(t, "", cfg.Subnet)
+	assert.False(t, cfg.RetainJobOnDelete)
 }
 
 func TestToAIBatchArgs(t *testing.T) {
@@ -238,8 +236,7 @@ func TestToAIBatchArgs(t *testing.T) {
 		BatchSize:                         100,
 		AcceleratorType:                   "NVIDIA_TESLA_T4",
 		AcceleratorCount:                  1,
-		Network:                           "projects/test-project/global/networks/test-network",
-		Subnet:                            "projects/test-project/regions/us-central1/subnetworks/test-subnet",
+		RetainJobOnDelete:                 true,
 	}
 
 	args := cfg.ToAIBatchArgs()
@@ -269,6 +266,5 @@ func TestToAIBatchArgs(t *testing.T) {
 	require.NotNil(t, args.BatchSize)
 	require.NotNil(t, args.AcceleratorType)
 	require.NotNil(t, args.AcceleratorCount)
-	require.NotNil(t, args.Network)
-	require.NotNil(t, args.Subnet)
+	assert.True(t, args.RetainJobOnDelete)
 }
