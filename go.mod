@@ -3,7 +3,7 @@ module github.com/davidmontoyago/pulumi-gcp-ai-batch
 go 1.24.5
 
 require (
-	github.com/davidmontoyago/commodity-namer v0.0.0-00010101000000-000000000000
+	github.com/davidmontoyago/commodity-namer v0.1.1
 	github.com/davidmontoyago/pulumi-gcp-vertex-model-deployment/sdk/go v0.0.0-20250818165415-d8de07fee986
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/pulumi/pulumi-gcp/sdk/v8 v8.41.1
@@ -100,8 +100,6 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	lukechampine.com/frand v1.4.2 // indirect
 )
-
-replace github.com/davidmontoyago/commodity-namer => /Users/David/projects/go/src/github.com/davidmontoyago/commodity-namer
 
 replace github.com/davidmontoyago/pulumi-gcp-ai-batch/example => ./example/
 

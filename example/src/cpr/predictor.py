@@ -1,79 +1,89 @@
-import os
-import pickle
+import json
 import torch
+import numpy as np
+from typing import Type, Optional, Any, Dict
+from fastapi import HTTPException
+from google.cloud.aiplatform.prediction import PredictionHandler, Predictor
 from transformers import BertTokenizer, BertForSequenceClassification
-from google.cloud.aiplatform.prediction.predictor import Predictor
-from google.cloud.aiplatform.utils import prediction_utils
+
 
 class BertSentimentPredictor(Predictor):
     def __init__(self):
         return
 
     def load(self, artifacts_uri: str) -> None:
-        """Load BERT model and tokenizer."""
-        prediction_utils.download_model_artifacts(artifacts_uri)
+        print(f"model artifacts bucket: {artifacts_uri}")
 
-        # Load tokenizer and model
-        self._tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+        self._tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
         self._model = BertForSequenceClassification.from_pretrained(
-            artifacts_uri,
-            num_labels=3  # positive, negative, neutral
+            "bert-base-uncased", num_labels=3  # positive, negative, neutral
         )
         self._model.eval()
+        self._loaded = True
 
     def preprocess(self, prediction_input):
-        """Handle BERT-specific preprocessing."""
-        instances = prediction_input.instances
+        print("preprocessing...")
 
-        preprocessed_instances = []
-        for instance in instances:
-            text = instance["text"]
+        instances = prediction_input.get("instances", [])
+        texts = [instance["text"] for instance in instances]
 
-            # BERT tokenization with required encoding
-            encoded = self._tokenizer(
-                text,
-                truncation=True,
-                padding='max_length',
-                max_length=512,
-                return_tensors='pt'
-            )
-
-            preprocessed_instances.append({
-                'input_ids': encoded['input_ids'].squeeze().tolist(),
-                'attention_mask': encoded['attention_mask'].squeeze().tolist(),
-                'token_type_ids': encoded.get('token_type_ids',
-                    torch.zeros_like(encoded['input_ids'])).squeeze().tolist()
-            })
-
-        return prediction_utils.PredictionInput(
-            instances=preprocessed_instances
+        encoded = self._tokenizer(
+            texts,
+            truncation=True,
+            padding="max_length",
+            max_length=512,
+            return_tensors="pt",
         )
+        return {
+            "input_ids": encoded["input_ids"],
+            "attention_mask": encoded["attention_mask"],
+            "token_type_ids": encoded.get(
+                "token_type_ids", torch.zeros_like(encoded["input_ids"])
+            ),
+        }
 
     def predict(self, instances):
-        """Run BERT inference."""
-        predictions = []
+        # Return dummy predictions for testing
+        print("predicting...")
 
-        for instance in instances:
-            input_ids = torch.tensor([instance['input_ids']])
-            attention_mask = torch.tensor([instance['attention_mask']])
-            token_type_ids = torch.tensor([instance['token_type_ids']])
+        with torch.no_grad():
+            outputs = self._model(
+                input_ids=instances["input_ids"],
+                attention_mask=instances["attention_mask"],
+                token_type_ids=instances["token_type_ids"],
+            )
 
-            with torch.no_grad():
-                outputs = self._model(
-                    input_ids=input_ids,
-                    attention_mask=attention_mask,
-                    token_type_ids=token_type_ids
-                )
+        probabilities = torch.softmax(outputs.logits, dim=-1)
+        predicted_classes = torch.argmax(probabilities, dim=-1)
+        confidences = probabilities.max(dim=-1).values
 
-            probabilities = torch.softmax(outputs.logits, dim=-1)
-            predicted_class = torch.argmax(probabilities, dim=-1).item()
-            confidence = probabilities.max().item()
+        # prediction results that will be passed to postprocess
+        return [
+            {
+                "probabilities": prob.tolist(),
+                "predicted_class": pred.item(),
+                "confidence": conf.item(),
+            }
+            for prob, pred, conf in zip(probabilities, predicted_classes, confidences)
+        ]
 
-            sentiment_labels = ["negative", "neutral", "positive"]
-            predictions.append({
-                "sentiment": sentiment_labels[predicted_class],
-                "confidence": confidence,
-                "probabilities": probabilities.squeeze().tolist()
-            })
+    def postprocess(self, predictions):
+        print("postprocessing...")
 
-        return predictions
+        sentiment_labels = ["negative", "neutral", "positive"]
+
+        processed_predictions = []
+        for prediction in predictions:
+            probabilities = prediction["probabilities"]
+            predicted_class = prediction["predicted_class"]
+            confidence = prediction["confidence"]
+
+            processed_predictions.append(
+                {
+                    "sentiment": sentiment_labels[predicted_class],
+                    "confidence": confidence,
+                    "probabilities": probabilities,
+                }
+            )
+
+        return {"predictions": processed_predictions}

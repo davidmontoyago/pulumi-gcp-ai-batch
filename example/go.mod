@@ -9,8 +9,6 @@ require (
 
 replace github.com/davidmontoyago/pulumi-gcp-ai-batch => ../
 
-replace github.com/davidmontoyago/commodity-namer => /Users/David/projects/go/src/github.com/davidmontoyago/commodity-namer
-
 require (
 	dario.cat/mergo v1.0.2 // indirect
 	github.com/BurntSushi/toml v1.5.0 // indirect
@@ -30,7 +28,7 @@ require (
 	github.com/cloudflare/circl v1.6.1 // indirect
 	github.com/containerd/console v1.0.4-0.20230313162750-1ae8d489ac81 // indirect
 	github.com/cyphar/filepath-securejoin v0.4.1 // indirect
-	github.com/davidmontoyago/commodity-namer v0.0.0-00010101000000-000000000000 // indirect
+	github.com/davidmontoyago/commodity-namer v0.1.1 // indirect
 	github.com/davidmontoyago/pulumi-gcp-vertex-model-deployment/sdk/go v0.0.0-20250818165415-d8de07fee986 // indirect
 	github.com/djherbis/times v1.5.0 // indirect
 	github.com/emirpasic/gods v1.18.1 // indirect

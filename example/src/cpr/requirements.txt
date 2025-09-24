@@ -3,3 +3,5 @@ torch>=2.4.1
 transformers>=4.46.3
 google-cloud-aiplatform[prediction]>=1.90.0
 fastapi>=0.114.0
+docker-py
+torchvision
