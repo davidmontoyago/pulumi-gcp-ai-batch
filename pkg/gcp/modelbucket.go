@@ -141,7 +141,7 @@ func (v *AIBatch) uploadModelToBucket(ctx *pulumi.Context, modelDir string, mode
 }
 
 // uploadInputDataToBucket uploads the input data to the bucket.
-func (v *AIBatch) uploadInputDataToBucket(ctx *pulumi.Context, inputDataDir string, inputDataBasePath string, labels map[string]string) (pulumi.StringOutput, []pulumi.Resource, error) {
+func (v *AIBatch) uploadInputDataToBucket(ctx *pulumi.Context, inputDataDir string, inputDataBasePath string) (pulumi.StringOutput, []pulumi.Resource, error) {
 	uploadedDataObjects, err := v.uploadDirectoryToBucket(ctx, inputDataDir, inputDataBasePath)
 	if err != nil {
 		return pulumi.StringOutput{}, nil, fmt.Errorf("failed to upload input data to bucket: %w", err)

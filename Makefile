@@ -16,8 +16,9 @@ lint:
 	docker run --rm -v $$(pwd):/app \
 		-v $$(go env GOCACHE):/.cache/go-build -e GOCACHE=/.cache/go-build \
 		-v $$(go env GOMODCACHE):/.cache/mod -e GOMODCACHE=/.cache/mod \
-		-w /app golangci/golangci-lint:v2.4.0 \
-		golangci-lint run --fix --verbose --output.text.colors
+		-w /app \
+		golangci/golangci-lint:v2.4.0 \
+		golangci-lint run --fix --verbose --output.text.colors --timeout=10m
 
 upgrade:
 	go get -u ./...

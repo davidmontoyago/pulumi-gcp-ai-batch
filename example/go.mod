@@ -29,7 +29,7 @@ require (
 	github.com/containerd/console v1.0.4-0.20230313162750-1ae8d489ac81 // indirect
 	github.com/cyphar/filepath-securejoin v0.4.1 // indirect
 	github.com/davidmontoyago/commodity-namer v0.1.1 // indirect
-	github.com/davidmontoyago/pulumi-gcp-vertex-model-deployment/sdk/go v0.0.0-20250818165415-d8de07fee986 // indirect
+	github.com/davidmontoyago/pulumi-gcp-vertex-model-deployment/sdk/go v0.0.0-20250923093503-dd6e2950946c // indirect
 	github.com/djherbis/times v1.5.0 // indirect
 	github.com/emirpasic/gods v1.18.1 // indirect
 	github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 // indirect

@@ -196,7 +196,7 @@ func (v *AIBatch) deploy(ctx *pulumi.Context, args *AIBatchArgs) error {
 	}
 
 	// Upload input data to bucket
-	inputDataBucketURI, uploadedDataObjects, err := v.uploadInputDataToBucket(ctx, v.inputDataLocalDir, v.inputDataTargetDir, args.Labels)
+	inputDataBucketURI, uploadedDataObjects, err := v.uploadInputDataToBucket(ctx, v.inputDataLocalDir, v.inputDataTargetDir)
 	if err != nil {
 		return fmt.Errorf("failed to upload input data to bucket: %w", err)
 	}

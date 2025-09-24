@@ -20,21 +20,3 @@ func setDefaultInt(input pulumi.IntInput, defaultValue int) pulumi.IntOutput {
 
 	return input.ToIntOutput()
 }
-
-func setDefaultBool(input pulumi.BoolInput, defaultValue bool) pulumi.BoolOutput {
-	if input == nil {
-		return pulumi.Bool(defaultValue).ToBoolOutput()
-	}
-
-	return input.ToBoolOutput()
-}
-
-// toPulumiStringMap converts a Go map[string]string to pulumi.StringMap.
-func toPulumiStringMap(m map[string]string) pulumi.StringMap {
-	result := make(pulumi.StringMap)
-	for k, v := range m {
-		result[k] = pulumi.String(v)
-	}
-
-	return result
-}

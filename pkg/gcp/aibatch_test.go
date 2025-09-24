@@ -663,6 +663,7 @@ func TestNewAIBatch_RetainJobOnDeleteAndUniqueName(t *testing.T) {
 		defer close(jobNameCh)
 		job.Name.ApplyT(func(name string) error {
 			jobNameCh <- name
+
 			return nil
 		})
 		firstJobName = <-jobNameCh
@@ -697,6 +698,7 @@ func TestNewAIBatch_RetainJobOnDeleteAndUniqueName(t *testing.T) {
 		defer close(jobNameCh)
 		job.Name.ApplyT(func(name string) error {
 			jobNameCh <- name
+
 			return nil
 		})
 		secondJobName := <-jobNameCh
