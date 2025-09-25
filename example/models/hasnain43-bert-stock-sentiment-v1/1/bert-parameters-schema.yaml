@@ -1,0 +1,22 @@
+# bert-parameters-schema.yaml
+# Parameters Schema Configuration
+# Minimal Parameters: BERT typically doesn't need runtime parameters since it's a deterministic encoder
+# batch_size: Optional parameter for controlling inference batch processing
+# max_seq_length: Useful when you want to override the default sequence length handling
+# Conservative Defaults: Set to common production values (batch_size=1, max_seq_length=128)
+---
+type: object
+properties:
+  batch_size:
+    type: integer
+    minimum: 1
+    maximum: 128
+    default: 1
+    description: "Optional batch size for inference requests"
+  max_seq_length:
+    type: integer
+    minimum: 1
+    maximum: 512
+    default: 128
+    description: "Optional max sequence length for tokenization"
+additionalProperties: false

@@ -1,11 +1,6 @@
-import json
 import torch
-import numpy as np
-from typing import Type, Optional, Any, Dict
-from fastapi import HTTPException
-from google.cloud.aiplatform.prediction import PredictionHandler, Predictor
-from transformers import BertTokenizer, BertForSequenceClassification
-
+from google.cloud.aiplatform.prediction import Predictor
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
 
 class BertSentimentPredictor(Predictor):
     def __init__(self):
@@ -14,10 +9,8 @@ class BertSentimentPredictor(Predictor):
     def load(self, artifacts_uri: str) -> None:
         print(f"model artifacts bucket: {artifacts_uri}")
 
-        self._tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
-        self._model = BertForSequenceClassification.from_pretrained(
-            "bert-base-uncased", num_labels=3  # positive, negative, neutral
-        )
+        self._tokenizer = AutoTokenizer.from_pretrained("hasnain43/bert-stock-sentiment-v1")
+        self._model = AutoModelForSequenceClassification.from_pretrained("hasnain43/bert-stock-sentiment-v1")
         self._model.eval()
         self._loaded = True
 
@@ -30,8 +23,7 @@ class BertSentimentPredictor(Predictor):
         encoded = self._tokenizer(
             texts,
             truncation=True,
-            padding="max_length",
-            max_length=512,
+            padding=True,
             return_tensors="pt",
         )
         return {
@@ -53,36 +45,36 @@ class BertSentimentPredictor(Predictor):
                 token_type_ids=instances["token_type_ids"],
             )
 
-        probabilities = torch.softmax(outputs.logits, dim=-1)
-        predicted_classes = torch.argmax(probabilities, dim=-1)
-        confidences = probabilities.max(dim=-1).values
+        probabilities = outputs.logits
+        predicted_classes = torch.argmax(probabilities, dim=1)
+        # confidences = probabilities.max(dim=-1).values
 
         # prediction results that will be passed to postprocess
         return [
             {
-                "probabilities": prob.tolist(),
                 "predicted_class": pred.item(),
-                "confidence": conf.item(),
+                # "probabilities": prob.tolist(),
+                # "confidence": conf.item(),
             }
-            for prob, pred, conf in zip(probabilities, predicted_classes, confidences)
+            for prob, pred in zip(probabilities, predicted_classes)
         ]
 
     def postprocess(self, predictions):
         print("postprocessing...")
 
-        sentiment_labels = ["negative", "neutral", "positive"]
+        sentiment_labels = {0: "negative", 1: "neutral", 2: "positive"}
 
         processed_predictions = []
         for prediction in predictions:
-            probabilities = prediction["probabilities"]
             predicted_class = prediction["predicted_class"]
-            confidence = prediction["confidence"]
+            # probabilities = prediction["probabilities"]
+            # confidence = prediction["confidence"]
 
             processed_predictions.append(
                 {
                     "sentiment": sentiment_labels[predicted_class],
-                    "confidence": confidence,
-                    "probabilities": probabilities,
+                    # "confidence": confidence,
+                    # "probabilities": probabilities,
                 }
             )
 

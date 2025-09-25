@@ -49,6 +49,7 @@ github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc/go.mod h1:J7Y8Yc
 github.com/davidmontoyago/commodity-namer v0.1.1 h1:PllsRLRdCexQasbMoxaHiak2ta8pFugfPWQhsSlHGiQ=
 github.com/davidmontoyago/commodity-namer v0.1.1/go.mod h1:8hZtngHrpJlI6Uh0Qzcq7pYvZlmk8JivDfH4gCOpdcs=
 github.com/davidmontoyago/pulumi-gcp-vertex-model-deployment/sdk/go v0.0.0-20250923093503-dd6e2950946c h1:VBjAc9KByH5fnt8caJBF6P3V/zWyPW1zU3I7mI2YaBo=
+github.com/davidmontoyago/pulumi-gcp-vertex-model-deployment/sdk/go v0.0.0-20250923093503-dd6e2950946c/go.mod h1:rksfsxC/BN1UIsQDfSjU1vtqecaadRTdCN/9PLUyL4c=
 github.com/djherbis/times v1.5.0 h1:79myA211VwPhFTqUk8xehWrsEO+zcIZj0zT8mXPVARU=
 github.com/djherbis/times v1.5.0/go.mod h1:5q7FDLvbNg1L/KaBmPcWlVR9NmoKo3+ucqUA3ijQhA0=
 github.com/elazarl/goproxy v1.2.3 h1:xwIyKHbaP5yfT6O9KIeYJR5549MXRQkoQMRXGztz8YQ=
