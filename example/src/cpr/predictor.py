@@ -9,8 +9,8 @@ class BertSentimentPredictor(Predictor):
     def load(self, artifacts_uri: str) -> None:
         print(f"model artifacts bucket: {artifacts_uri}")
 
-        self._tokenizer = AutoTokenizer.from_pretrained("hasnain43/bert-stock-sentiment-v1")
-        self._model = AutoModelForSequenceClassification.from_pretrained("hasnain43/bert-stock-sentiment-v1")
+        self._tokenizer = AutoTokenizer.from_pretrained("nlptown/bert-base-multilingual-uncased-sentiment")
+        self._model = AutoModelForSequenceClassification.from_pretrained("nlptown/bert-base-multilingual-uncased-sentiment")
         self._model.eval()
         self._loaded = True
 
@@ -45,9 +45,10 @@ class BertSentimentPredictor(Predictor):
                 token_type_ids=instances["token_type_ids"],
             )
 
-        probabilities = outputs.logits
-        predicted_classes = torch.argmax(probabilities, dim=1)
-        # confidences = probabilities.max(dim=-1).values
+            probabilities = outputs.logits
+            # get the index of the highest probability along dimension 1 (the class dimension)
+            predicted_classes = torch.argmax(probabilities, dim=1)
+            # confidences = probabilities.max(dim=-1).values
 
         # prediction results that will be passed to postprocess
         return [
@@ -62,7 +63,7 @@ class BertSentimentPredictor(Predictor):
     def postprocess(self, predictions):
         print("postprocessing...")
 
-        sentiment_labels = {0: "negative", 1: "neutral", 2: "positive"}
+        sentiment_labels = {0: "1 star", 1: "2 stars", 2: "3 stars", 3: "4 stars", 4: "5 stars"}
 
         processed_predictions = []
         for prediction in predictions:
@@ -72,7 +73,7 @@ class BertSentimentPredictor(Predictor):
 
             processed_predictions.append(
                 {
-                    "sentiment": sentiment_labels[predicted_class],
+                    "review": sentiment_labels[predicted_class],
                     # "confidence": confidence,
                     # "probabilities": probabilities,
                 }

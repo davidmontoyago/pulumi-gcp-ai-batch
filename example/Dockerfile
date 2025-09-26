@@ -20,7 +20,7 @@ FROM us-docker.pkg.dev/vertex-ai/prediction/pytorch-cpu.1-12:latest
 COPY --from=builder /home/model-server/.local /home/model-server/.local
 
 COPY src/cpr/predictor.py /home/model-server/cpr/
-COPY models/hasnain43-bert-stock-sentiment-v1/ /home/model-server/model/
+COPY models/nlptown-bert-base-multilingual-uncased-sentiment/ /home/model-server/model/
 
 # Environment variables
 
@@ -32,7 +32,7 @@ COPY models/hasnain43-bert-stock-sentiment-v1/ /home/model-server/model/
 # If this parameter is a local directory:
 # (1) The directory will be mounted to a default temporary model path.
 # (2) The mounted path will be passed to `Predictor.load`.
-ENV AIP_STORAGE_URI="gs://example-prediction-batch-vertex-model-bucket/model-hasnain43"
+ENV AIP_STORAGE_URI="gs://example-prediction-batch-vertex-model-bucket/model-nlptown-bert-sentiment"
 
 # --- config for model server and custom prediction routine ---
 
