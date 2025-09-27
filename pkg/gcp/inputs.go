@@ -11,19 +11,27 @@ type AIBatchArgs struct {
 	Project string
 	// GCP region where resources will be created (e.g., "us-central1")
 	Region string
+
+	// --- Model details ---
+
 	// Container image URL for the model server. Defaults to Google's TensorFlow 2.15 CPU prediction container.
 	// Example: "gcr.io/my-project/my-model:latest"
 	ModelImageURL pulumi.StringInput
-	// Path to the model artifacts for deployment, including the schemas. Required.
+	// Path to the model artifacts for deployment, including the schemas. Required if ModelName is not set.
 	ModelDir string
-	// Path to the YAML file within ModelDir with the model prediction input schema. Required.
+	// Name of the model from the garden. Required if ModelDir is not set.
+	ModelName string
+	// Path to the YAML file within ModelDir with the model prediction input schema. Required if ModelDir is set.
 	ModelPredictionInputSchemaPath string
-	// Path to the YAML file within ModelDir with the model prediction output schema. Required.
+	// Path to the YAML file within ModelDir with the model prediction output schema. Required if ModelDir is set.
 	ModelPredictionOutputSchemaPath string
 	// Path to the YAML file within ModelDir with the model prediction behavior schema. Not required depending on the model.
 	ModelPredictionBehaviorSchemaPath string
 	// Base path to the model artifacts in the bucket. Defaults to "model".
 	ModelBucketBasePath string
+
+	// --- Batch job details ---
+
 	// Machine type for the batch prediction job (e.g., "n1-standard-2", "n1-standard-4").
 	MachineType pulumi.StringInput
 	// Display name for the batch prediction job (optional, defaults to component name)
@@ -37,8 +45,6 @@ type AIBatchArgs struct {
 	// eventually cleaned up.
 	// If not set, the job will be replaced regardless of the state.
 	RetainJobOnDelete bool
-
-	// Batch prediction job specific fields
 
 	// --- Input data configuration ---
 	// Path to the local directory containing input data files (e.g., "data/inputs/")
@@ -75,7 +81,4 @@ type AIBatchArgs struct {
 	// Additional configuration
 	// Additional labels to apply to resources
 	Labels map[string]string
-	// Network configuration for the job. Optional
-	Network pulumi.StringInput
-	Subnet  pulumi.StringInput
 }

@@ -23,6 +23,7 @@ type AIBatch struct {
 	Region                            string
 	ModelImageURL                     pulumi.StringOutput
 	ModelDir                          string
+	ModelName                         string
 	ModelPredictionInputSchemaPath    string
 	ModelPredictionOutputSchemaPath   string
 	ModelPredictionBehaviorSchemaPath string
@@ -69,14 +70,17 @@ func NewAIBatch(ctx *pulumi.Context, name string, args *AIBatchArgs, opts ...pul
 	if args.Region == "" {
 		return nil, fmt.Errorf("region is required")
 	}
-	if args.ModelDir == "" {
-		return nil, fmt.Errorf("model directory is required")
+	if args.ModelDir == "" && args.ModelName == "" {
+		return nil, fmt.Errorf("one of model directory or model name is required")
 	}
-	if args.ModelPredictionInputSchemaPath == "" {
-		return nil, fmt.Errorf("model prediction input schema path is required")
-	}
-	if args.ModelPredictionOutputSchemaPath == "" {
-		return nil, fmt.Errorf("model prediction output schema path is required")
+
+	if args.ModelDir != "" {
+		if args.ModelPredictionInputSchemaPath == "" {
+			return nil, fmt.Errorf("model prediction input schema path is required")
+		}
+		if args.ModelPredictionOutputSchemaPath == "" {
+			return nil, fmt.Errorf("model prediction output schema path is required")
+		}
 	}
 
 	if args.ModelBucketBasePath == "" {
@@ -96,6 +100,7 @@ func NewAIBatch(ctx *pulumi.Context, name string, args *AIBatchArgs, opts ...pul
 		Project:                           args.Project,
 		Region:                            args.Region,
 		ModelDir:                          args.ModelDir,
+		ModelName:                         args.ModelName,
 		ModelPredictionInputSchemaPath:    args.ModelPredictionInputSchemaPath,
 		ModelPredictionOutputSchemaPath:   args.ModelPredictionOutputSchemaPath,
 		ModelPredictionBehaviorSchemaPath: args.ModelPredictionBehaviorSchemaPath,
@@ -141,24 +146,31 @@ func NewAIBatch(ctx *pulumi.Context, name string, args *AIBatchArgs, opts ...pul
 		return nil, fmt.Errorf("failed to deploy AI batch: %w", err)
 	}
 
-	err = ctx.RegisterResourceOutputs(AIBatch, pulumi.Map{
-		"vertex_ai_batch_model_service_account_email":          AIBatch.modelServiceAccount.Email,
-		"vertex_ai_batch_job_id":                               AIBatch.batchPredictionJob.ID(),
-		"vertex_ai_batch_job_name":                             AIBatch.batchPredictionJob.Name,
-		"vertex_ai_batch_job_display_name":                     AIBatch.batchPredictionJob.DisplayName,
-		"vertex_ai_batch_job_state":                            AIBatch.batchPredictionJob.State,
-		"vertex_ai_batch_model_image_url":                      AIBatch.modelDeployment.ModelImageUrl,
-		"vertex_ai_batch_model_artifacts_bucket_uri":           AIBatch.modelDeployment.ModelArtifactsBucketUri,
-		"vertex_ai_batch_model_deployment_id":                  AIBatch.modelDeployment.ID(),
-		"vertex_ai_batch_deployed_model_id":                    AIBatch.modelDeployment.DeployedModelId,
-		"vertex_ai_batch_artifacts_bucket_name":                AIBatch.artifactsBucket.Name,
-		"vertex_ai_batch_uploaded_model_files":                 AIBatch.uploadedModelFiles,
-		"vertex_ai_batch_model_prediction_input_schema_uri":    AIBatch.modelDeployment.ModelPredictionInputSchemaUri,
-		"vertex_ai_batch_model_prediction_output_schema_uri":   AIBatch.modelDeployment.ModelPredictionOutputSchemaUri,
-		"vertex_ai_batch_model_prediction_behavior_schema_uri": AIBatch.modelDeployment.ModelPredictionBehaviorSchemaUri,
-		"vertex_ai_batch_input_data_uri":                       AIBatch.InputDataPath,
-		"vertex_ai_batch_output_data_uri_prefix":               AIBatch.OutputDataPath,
-	})
+	// Prepare resource outputs
+	outputs := pulumi.Map{
+		"vertex_ai_batch_model_service_account_email": AIBatch.modelServiceAccount.Email,
+		"vertex_ai_batch_job_id":                      AIBatch.batchPredictionJob.ID(),
+		"vertex_ai_batch_job_name":                    AIBatch.batchPredictionJob.Name,
+		"vertex_ai_batch_job_display_name":            AIBatch.batchPredictionJob.DisplayName,
+		"vertex_ai_batch_job_state":                   AIBatch.batchPredictionJob.State,
+		"vertex_ai_batch_artifacts_bucket_name":       AIBatch.artifactsBucket.Name,
+		"vertex_ai_batch_uploaded_model_files":        AIBatch.uploadedModelFiles,
+		"vertex_ai_batch_input_data_uri":              AIBatch.InputDataPath,
+		"vertex_ai_batch_output_data_uri_prefix":      AIBatch.OutputDataPath,
+	}
+
+	// Add model deployment specific outputs only if model deployment exists
+	if AIBatch.modelDeployment != nil {
+		outputs["vertex_ai_batch_model_image_url"] = AIBatch.modelDeployment.ModelImageUrl
+		outputs["vertex_ai_batch_model_artifacts_bucket_uri"] = AIBatch.modelDeployment.ModelArtifactsBucketUri
+		outputs["vertex_ai_batch_model_deployment_id"] = AIBatch.modelDeployment.ID()
+		outputs["vertex_ai_batch_deployed_model_id"] = AIBatch.modelDeployment.DeployedModelId
+		outputs["vertex_ai_batch_model_prediction_input_schema_uri"] = AIBatch.modelDeployment.ModelPredictionInputSchemaUri
+		outputs["vertex_ai_batch_model_prediction_output_schema_uri"] = AIBatch.modelDeployment.ModelPredictionOutputSchemaUri
+		outputs["vertex_ai_batch_model_prediction_behavior_schema_uri"] = AIBatch.modelDeployment.ModelPredictionBehaviorSchemaUri
+	}
+
+	err = ctx.RegisterResourceOutputs(AIBatch, outputs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to register resource outputs: %w", err)
 	}
@@ -190,7 +202,7 @@ func (v *AIBatch) deploy(ctx *pulumi.Context, args *AIBatchArgs) error {
 	}
 
 	// Upload model artifacts (including schemas) to bucket
-	modelArtifactsURI, uploadedModelArtifacts, err := v.uploadModelToBucket(ctx, args.ModelDir, args.ModelBucketBasePath, args.Labels)
+	modelArtifactsURI, uploadedModelArtifacts, err := v.setupModelBucket(ctx, args.ModelDir, args.ModelBucketBasePath, args.Labels)
 	if err != nil {
 		return fmt.Errorf("failed to upload model to bucket: %w", err)
 	}
@@ -204,12 +216,15 @@ func (v *AIBatch) deploy(ctx *pulumi.Context, args *AIBatchArgs) error {
 	// Collect uploaded data file names for outputs
 	v.uploadedModelFiles = collectBucketObjectNames(uploadedModelArtifacts, uploadedDataObjects)
 
-	// Deploy the model to get a model ID for the batch prediction job
-	modelDeployment, err := v.deployModel(ctx, modelArtifactsURI, modelServiceAccount.Email, uploadedModelArtifacts)
-	if err != nil {
-		return fmt.Errorf("failed to deploy model /o\\: %w", err)
+	var modelDeployment *vertexmodeldeployment.VertexModelDeployment
+	if args.ModelDir != "" {
+		// Upload the model to the model registry and get a model ID for the job
+		modelDeployment, err = v.deployModel(ctx, modelArtifactsURI, modelServiceAccount.Email, uploadedModelArtifacts)
+		if err != nil {
+			return fmt.Errorf("failed to deploy model /o\\: %w", err)
+		}
+		v.modelDeployment = modelDeployment
 	}
-	v.modelDeployment = modelDeployment
 
 	// Create the batch prediction job
 	batchPredictionJob, err := v.createBatchPredictionJob(ctx, modelDeployment, inputDataBucketURI, modelServiceAccount.Email)

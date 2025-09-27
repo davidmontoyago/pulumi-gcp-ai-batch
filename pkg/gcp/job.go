@@ -15,6 +15,20 @@ func (v *AIBatch) createBatchPredictionJob(ctx *pulumi.Context,
 	inputDataBucketURI pulumi.StringOutput,
 	serviceAccountEmail pulumi.StringOutput) (*v1beta1.BatchPredictionJob, error) {
 
+	var modelName pulumi.StringOutput
+	dependencies := []pulumi.Resource{v.artifactsBucket}
+	if modelDeployment != nil {
+		dependencies = append(dependencies, modelDeployment)
+		modelName = modelDeployment.ModelName
+	} else {
+		// if no model deployment, it's a model from the garden
+		modelName = pulumi.String(v.ModelName).ToStringOutput()
+	}
+	if v.repoIamMember != nil {
+		// wait for IAM binding to access a private registry
+		dependencies = append(dependencies, v.repoIamMember)
+	}
+
 	// Construct the input config
 	inputConfig := &v1beta1.GoogleCloudAiplatformV1beta1BatchPredictionJobInputConfigArgs{
 		InstancesFormat: v.InputFormat,
@@ -50,7 +64,7 @@ func (v *AIBatch) createBatchPredictionJob(ctx *pulumi.Context,
 		Project:            pulumi.String(v.Project),
 		Location:           pulumi.String(v.Region),
 		DisplayName:        v.JobDisplayName,
-		Model:              modelDeployment.ModelName, // Use the deployed model name
+		Model:              modelName, // Use the deployed model name or the name of a model from the garden
 		InputConfig:        inputConfig,
 		OutputConfig:       outputConfig,
 		DedicatedResources: dedicatedResources,
@@ -59,11 +73,6 @@ func (v *AIBatch) createBatchPredictionJob(ctx *pulumi.Context,
 			BatchSize: v.BatchSize,
 		},
 		Labels: pulumi.ToStringMap(v.Labels),
-	}
-
-	dependencies := []pulumi.Resource{v.artifactsBucket, modelDeployment}
-	if v.repoIamMember != nil {
-		dependencies = append(dependencies, v.repoIamMember)
 	}
 
 	// every pulumi up operation is a new launch

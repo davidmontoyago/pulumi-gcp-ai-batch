@@ -13,6 +13,11 @@ import (
 
 // uploadDirectoryToBucket traverses a directory and uploads all files to a GCS bucket.
 func (v *AIBatch) uploadDirectoryToBucket(ctx *pulumi.Context, localDir, baseObjectPath string) ([]pulumi.Resource, error) {
+	if localDir == "" {
+		// no model artifacts to upload. skip
+		return []pulumi.Resource{}, nil
+	}
+
 	var bucketObjects []*storage.BucketObject
 
 	err := filepath.Walk(localDir, func(filePath string, info os.FileInfo, err error) error {
@@ -93,9 +98,9 @@ func detectContentType(filePath string) string {
 	return contentType
 }
 
-// uploadModelToBucket creates a bucket for model artifacts and uploads the model directory.
+// setupModelBucket creates a bucket for model artifacts and uploads the model directory if any.
 // It returns the GCS URI of the uploaded model artifacts and the uploaded objects for dependency tracking.
-func (v *AIBatch) uploadModelToBucket(ctx *pulumi.Context, modelDir string, modelBucketBasePath string, labels map[string]string) (pulumi.StringOutput, []pulumi.Resource, error) {
+func (v *AIBatch) setupModelBucket(ctx *pulumi.Context, modelDir string, modelBucketBasePath string, labels map[string]string) (pulumi.StringOutput, []pulumi.Resource, error) {
 	// Create the bucket for model artifacts
 	bucketName := v.NewResourceName("vertex-model", "bucket", 63)
 
@@ -129,7 +134,7 @@ func (v *AIBatch) uploadModelToBucket(ctx *pulumi.Context, modelDir string, mode
 
 	// No luck with https://github.com/pulumi/pulumi-synced-folder /o\
 
-	// Upload the model artifacts
+	// Upload the model artifacts, if any
 	uploadedObjects, err := v.uploadDirectoryToBucket(ctx, modelDir, modelBucketBasePath)
 	if err != nil {
 		return pulumi.StringOutput{}, nil, fmt.Errorf("failed to upload model artifacts: %w", err)

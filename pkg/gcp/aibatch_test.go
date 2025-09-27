@@ -710,6 +710,198 @@ func TestNewAIBatch_RetainJobOnDeleteAndUniqueName(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestNewAIBatch_WithModelFromTheGarden(t *testing.T) {
+	t.Parallel()
+
+	// Create separate temporary input data directory (no model directory needed for garden models)
+	tempInputDataDir := createTempInputDataDir(t)
+
+	err := pulumi.RunErr(func(ctx *pulumi.Context) error {
+		args := &gcp.AIBatchArgs{
+			Project:              testProjectName,
+			Region:               testRegion,
+			ModelName:            "publishers/google/models/gemma-2b-it", // Model from the garden
+			MachineType:          pulumi.String("n1-standard-2"),
+			JobDisplayName:       pulumi.String("test-garden-batch-job"),
+			InputDataPath:        tempInputDataDir,
+			InputFormat:          "jsonl",
+			OutputDataPath:       pulumi.String("garden-model/predictions/"),
+			OutputFormat:         pulumi.String("jsonl"),
+			StartingReplicaCount: pulumi.Int(1),
+			MaxReplicaCount:      pulumi.Int(2),
+			BatchSize:            pulumi.Int(50),
+			Labels: map[string]string{
+				"environment": "test",
+				"model-type":  "garden",
+			},
+		}
+
+		AIBatch, err := gcp.NewAIBatch(ctx, "test-garden-batch", args)
+		require.NoError(t, err)
+
+		// Verify basic properties
+		assert.Equal(t, testProjectName, AIBatch.Project)
+		assert.Equal(t, testRegion, AIBatch.Region)
+		assert.Equal(t, "publishers/google/models/gemma-2b-it", AIBatch.ModelName)
+		assert.Empty(t, AIBatch.ModelDir, "Model directory should be empty for garden models")
+
+		// Verify schema paths are empty (not required for garden models)
+		assert.Empty(t, AIBatch.ModelPredictionInputSchemaPath, "Input schema path should be empty for garden models")
+		assert.Empty(t, AIBatch.ModelPredictionOutputSchemaPath, "Output schema path should be empty for garden models")
+		assert.Empty(t, AIBatch.ModelPredictionBehaviorSchemaPath, "Behavior schema path should be empty for garden models")
+
+		// Verify machine type
+		machineTypeCh := make(chan string, 1)
+		defer close(machineTypeCh)
+		AIBatch.MachineType.ApplyT(func(machineType string) error {
+			machineTypeCh <- machineType
+
+			return nil
+		})
+		assert.Equal(t, "n1-standard-2", <-machineTypeCh, "Machine type should match")
+
+		// Verify batch job specific fields
+		jobDisplayNameCh := make(chan string, 1)
+		defer close(jobDisplayNameCh)
+		AIBatch.JobDisplayName.ApplyT(func(displayName string) error {
+			jobDisplayNameCh <- displayName
+
+			return nil
+		})
+		assert.Equal(t, "test-garden-batch-job", <-jobDisplayNameCh, "Job display name should match")
+
+		inputDataURICh := make(chan string, 1)
+		defer close(inputDataURICh)
+		AIBatch.InputDataPath.ApplyT(func(uri string) error {
+			inputDataURICh <- uri
+
+			return nil
+		})
+		assert.Equal(t, tempInputDataDir, <-inputDataURICh, "Input data path should match the input data directory")
+
+		outputDataURIPrefixCh := make(chan string, 1)
+		defer close(outputDataURIPrefixCh)
+		AIBatch.OutputDataPath.ApplyT(func(uri string) error {
+			outputDataURIPrefixCh <- uri
+
+			return nil
+		})
+		assert.Equal(t, "garden-model/predictions/", <-outputDataURIPrefixCh, "Output data URI prefix should match")
+
+		// Verify model service account is still created
+		modelServiceAccount := AIBatch.GetModelServiceAccount()
+		require.NotNil(t, modelServiceAccount, "Model service account should not be nil")
+
+		// Assert service account email is set correctly
+		serviceAccountEmailCh := make(chan string, 1)
+		defer close(serviceAccountEmailCh)
+		modelServiceAccount.Email.ApplyT(func(email string) error {
+			serviceAccountEmailCh <- email
+
+			return nil
+		})
+		expectedEmail := "test-garden-batch-model-account@test-project.iam.gserviceaccount.com"
+		assert.Equal(t, expectedEmail, <-serviceAccountEmailCh, "Model service account email should match expected pattern")
+
+		// Verify batch prediction job is created
+		batchPredictionJob := AIBatch.GetBatchPredictionJob()
+		require.NotNil(t, batchPredictionJob, "Batch prediction job should not be nil")
+
+		// Verify NO model deployment is created for garden models
+		modelDeployment := AIBatch.GetModelDeployment()
+		assert.Nil(t, modelDeployment, "Model deployment should be nil for garden models")
+
+		// Verify uploaded files (only input data files, no model artifacts)
+		uploadedFiles := AIBatch.GetUploadedModelArtifacts()
+		filesCh := make(chan []string, 1)
+		defer close(filesCh)
+		uploadedFiles.ApplyT(func(files []string) error {
+			filesCh <- files
+
+			return nil
+		})
+		files := <-filesCh
+		require.Len(t, files, 2, "Should have uploaded exactly 2 files (only input data files, no model artifacts)")
+
+		// Verify only input data files are uploaded (no model artifacts)
+		expectedInputDataFiles := []string{
+			"inputs/data1.jsonl",
+			"inputs/data2.jsonl",
+		}
+		for _, expectedInputFile := range expectedInputDataFiles {
+			assert.Contains(t, files, expectedInputFile, "Should contain input data file: %s", expectedInputFile)
+		}
+
+		// Verify no model artifacts are uploaded
+		modelArtifactPatterns := []string{"model/", ".pb", ".yaml", "variables/"}
+		for _, file := range files {
+			for _, pattern := range modelArtifactPatterns {
+				assert.NotContains(t, file, pattern, "Should not contain model artifacts for garden models: %s", file)
+			}
+		}
+
+		// Verify IAM members for batch prediction job (same as regular models)
+		iamMembers := AIBatch.GetIAMMembers()
+		require.Len(t, iamMembers, 6, "Should have exactly 6 IAM members (storage.bucketViewer, storage.objectViewer, storage.objectCreator, logging.logWriter, monitoring.metricWriter, aiplatform.user)")
+
+		// Check that IAM members have the expected roles
+		for _, member := range iamMembers {
+			roleCh := make(chan string, 1)
+			member.Role.ApplyT(func(role string) error {
+				roleCh <- role
+
+				return nil
+			})
+			role := <-roleCh
+			assert.Contains(t, []string{
+				"roles/storage.bucketViewer",
+				"roles/storage.objectViewer",
+				"roles/storage.objectCreator",
+				"roles/logging.logWriter",
+				"roles/monitoring.metricWriter",
+				"roles/aiplatform.user",
+			}, role, "IAM member should have expected role")
+		}
+
+		// Verify input and output config URIs are properly constructed with bucket URI and paths
+		batchJob := AIBatch.GetBatchPredictionJob()
+		require.NotNil(t, batchJob, "Batch prediction job should not be nil")
+
+		// Extract input config GCS URIs
+		inputConfigCh := make(chan []string, 1)
+		defer close(inputConfigCh)
+		batchJob.InputConfig.GcsSource().Uris().ApplyT(func(uris []string) error {
+			inputConfigCh <- uris
+
+			return nil
+		})
+		inputConfigURIs := <-inputConfigCh
+		require.Len(t, inputConfigURIs, 1, "Should have exactly one input URI")
+
+		expectedInputURI := "gs://test-garden-batch-vertex-model-bucket/inputs/*.jsonl"
+		assert.Equal(t, expectedInputURI, inputConfigURIs[0], "Input config URI should point to inputs directory in bucket")
+
+		// Extract output config GCS URI prefix
+		outputConfigCh := make(chan string, 1)
+		defer close(outputConfigCh)
+		batchJob.OutputConfig.GcsDestination().OutputUriPrefix().ApplyT(func(uriPrefix string) error {
+			outputConfigCh <- uriPrefix
+
+			return nil
+		})
+		outputConfigURI := <-outputConfigCh
+
+		expectedOutputURI := "gs://test-garden-batch-vertex-model-bucket/garden-model/predictions/"
+		assert.Equal(t, expectedOutputURI, outputConfigURI, "Output config URI should be bucket URI + output data path")
+
+		return nil
+	}, pulumi.WithMocks("project", "stack", &AIBatchMocks{t: t}))
+
+	if err != nil {
+		t.Fatalf("Pulumi WithMocks failed: %v", err)
+	}
+}
+
 func TestNewAIBatch_RequiredFields(t *testing.T) {
 	t.Parallel()
 
@@ -741,7 +933,7 @@ func TestNewAIBatch_RequiredFields(t *testing.T) {
 			expectedErr: "region is required",
 		},
 		{
-			name: "missing model directory",
+			name: "missing both model directory and model name",
 			args: &gcp.AIBatchArgs{
 				Project:                         testProjectName,
 				Region:                          testRegion,
@@ -750,10 +942,10 @@ func TestNewAIBatch_RequiredFields(t *testing.T) {
 				ModelPredictionInputSchemaPath:  "input_schema.yaml",
 				ModelPredictionOutputSchemaPath: "output_schema.yaml",
 			},
-			expectedErr: "model directory is required",
+			expectedErr: "one of model directory or model name is required",
 		},
 		{
-			name: "missing input schema path",
+			name: "missing input schema path when using model directory",
 			args: &gcp.AIBatchArgs{
 				Project:                         testProjectName,
 				Region:                          testRegion,
@@ -765,7 +957,7 @@ func TestNewAIBatch_RequiredFields(t *testing.T) {
 			expectedErr: "model prediction input schema path is required",
 		},
 		{
-			name: "missing output schema path",
+			name: "missing output schema path when using model directory",
 			args: &gcp.AIBatchArgs{
 				Project:                        testProjectName,
 				Region:                         testRegion,
