@@ -48,16 +48,16 @@ class BertSentimentPredictor(Predictor):
             probabilities = outputs.logits
             # get the index of the highest probability along dimension 1 (the class dimension)
             predicted_classes = torch.argmax(probabilities, dim=1)
-            # confidences = probabilities.max(dim=-1).values
+            confidences = probabilities.max(dim=-1).values
 
         # prediction results that will be passed to postprocess
         return [
             {
                 "predicted_class": pred.item(),
-                # "probabilities": prob.tolist(),
-                # "confidence": conf.item(),
+                "probabilities": prob.tolist(),
+                "confidence": conf.item(),
             }
-            for prob, pred in zip(probabilities, predicted_classes)
+            for prob, pred, conf in zip(probabilities, predicted_classes, confidences)
         ]
 
     def postprocess(self, predictions):
@@ -68,14 +68,14 @@ class BertSentimentPredictor(Predictor):
         processed_predictions = []
         for prediction in predictions:
             predicted_class = prediction["predicted_class"]
-            # probabilities = prediction["probabilities"]
-            # confidence = prediction["confidence"]
+            probabilities = prediction["probabilities"]
+            confidence = prediction["confidence"]
 
             processed_predictions.append(
                 {
                     "review": sentiment_labels[predicted_class],
-                    # "confidence": confidence,
-                    # "probabilities": probabilities,
+                    "confidence": confidence,
+                    "probabilities": probabilities,
                 }
             )
 

@@ -37,7 +37,7 @@ deploy: build
 	mkdir -p .state
 	pulumi login file://.state
 	pulumi stack select example
-# 	pulumi refresh --verbose=10
+	pulumi refresh
 	set -a && source ./config/env.example && set +a && pulumi up --color=always --verbose=1 --logtostderr --stack example
 
 undeploy:	build

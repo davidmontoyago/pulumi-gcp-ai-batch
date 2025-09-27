@@ -20,7 +20,6 @@ FROM us-docker.pkg.dev/vertex-ai/prediction/pytorch-cpu.1-12:latest
 COPY --from=builder /home/model-server/.local /home/model-server/.local
 
 COPY src/cpr/predictor.py /home/model-server/cpr/
-COPY models/nlptown-bert-base-multilingual-uncased-sentiment/ /home/model-server/model/
 
 # Environment variables
 

@@ -22,8 +22,18 @@ func main() {
 		}
 
 		ctx.Export("batchPredictionJobName", predictionBatch.GetBatchPredictionJob().Name)
+		ctx.Export("batchPredictionJobDisplayName", predictionBatch.GetBatchPredictionJob().DisplayName)
 		ctx.Export("batchPredictionJobModelVersionId", predictionBatch.GetBatchPredictionJob().ModelVersionId)
 		ctx.Export("modelServiceAccountEmail", predictionBatch.GetModelServiceAccount().Email)
+		ctx.Export("modelArtifactsBucketUri", predictionBatch.GetModelDeployment().ModelArtifactsBucketUri)
+		ctx.Export("modellOutputsBucketUri", pulumi.Sprintf("gs://%s/%s",
+			predictionBatch.GetModelDeployment().ModelArtifactsBucketUri,
+			predictionBatch.OutputDataPath,
+		))
+		ctx.Export("modellInputsBucketUri", pulumi.Sprintf("gs://%s/%s",
+			predictionBatch.GetModelDeployment().ModelArtifactsBucketUri,
+			predictionBatch.InputDataPath,
+		))
 
 		return nil
 	})

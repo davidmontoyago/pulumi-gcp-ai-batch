@@ -2,7 +2,9 @@
 
 BERT deployment with custom docker image to use Custom Prediction Routines for model input preprocessing and output translation.
 
-The custom prediction routine is a BERT predictor for sentiment analysis. It's packaged in a custom container and deployed with the GCP-provided [CprModelServer](https://github.com/googleapis/python-aiplatform/blob/18a55590c5679b8ea7536c4c3c73566ba006bf36/google/cloud/aiplatform/prediction/model_server.py#L48).
+BERT model is https://huggingface.co/nlptown/bert-base-multilingual-uncased-sentiment which predicts products review stars from 1 to 5.
+
+The custom prediction routine uses a BERT sequence classification transformer with `torch.argmax` to get the highest probability of the review falling within one of the 5 review classes. It's packaged in a custom container and deployed with the GCP-provided [CprModelServer](https://github.com/googleapis/python-aiplatform/blob/18a55590c5679b8ea7536c4c3c73566ba006bf36/google/cloud/aiplatform/prediction/model_server.py#L48).
 
 See:
 - https://github.com/googleapis/python-aiplatform/tree/v1.116.0/google/cloud/aiplatform/prediction
@@ -30,4 +32,9 @@ make pulumi-init
 
 # proceed to deploy the AIBatch with Pulumi
 make deploy
+
+# see inference results in GCS
+
+# clean up
+make undeploy
 ```

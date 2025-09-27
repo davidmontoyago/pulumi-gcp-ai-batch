@@ -4,70 +4,63 @@
 
 Deploy a model and a job for batched inference.
 
+See [./example](example/README.md) for an end-to-end sentiment analysis pipeline with model https://huggingface.co/nlptown/bert-base-multilingual-uncased-sentiment.
+
 ```go
-package main
+pulumi.Run(func(ctx *pulumi.Context) error {
+    // Launch a new async inference job with a BERT-based model
+    batchJob, err := gcp.NewAIBatch(ctx, "bert-sentiment-batch", &gcp.AIBatchArgs{
+        Project: "my-gcp-project",
+        Region:  "us-central1",
 
-import (
-    "github.com/davidmontoyago/pulumi-gcp-ai-batch/pkg/gcp"
-    "github.com/pulumi/pulumi/sdk/v3/go/pulumi"
-)
+        // Model configuration
+        ModelDir:                          "./models/nlptown-bert-base-multilingual-uncased-sentiment",
+        ModelPredictionInputSchemaPath:    "bert-instance-schema.yaml",
+        ModelPredictionOutputSchemaPath:   "bert-prediction-schema.yaml",
+        ModelPredictionBehaviorSchemaPath: "bert-parameters-schema.yaml",
+        ModelImageURL:                     pulumi.String("us-docker.pkg.dev/vertex-ai/prediction/tf2-cpu.2-15:latest"),
 
-func main() {
-    pulumi.Run(func(ctx *pulumi.Context) error {
-        // Create an AI batch prediction job with a BERT model
-        batchJob, err := gcp.NewAIBatch(ctx, "bert-sentiment-batch", &gcp.AIBatchArgs{
-            Project: "my-gcp-project",
-            Region:  "us-central1",
+        // Input data configuration
+        InputDataPath: "./inputs",
+        InputFormat:   "jsonl",
 
-            // Model configuration
-            ModelDir:                          "./models/bert-tensorflow2-bert-en-uncased-l-10-h-128-a-2-v2",
-            ModelPredictionInputSchemaPath:    "bert-instance-schema.yaml",
-            ModelPredictionOutputSchemaPath:   "bert-prediction-schema.yaml",
-            ModelPredictionBehaviorSchemaPath: "bert-parameters-schema.yaml",
-            ModelImageURL:                     pulumi.String("us-docker.pkg.dev/vertex-ai/prediction/tf2-cpu.2-15:latest"),
+        // Output configuration
+        OutputDataPath: pulumi.String("gs://my-bucket/predictions/"),
+        OutputFormat:   pulumi.String("jsonl"),
 
-            // Input data configuration
-            InputDataPath: "./inputs",
-            InputFormat:   "jsonl",
+        // Resource allocation
+        MachineType:          pulumi.String("g2-standard-8"),
+        StartingReplicaCount: pulumi.Int(2),
+        MaxReplicaCount:      pulumi.Int(5),
+        BatchSize:            pulumi.Int(64),
 
-            // Output configuration
-            OutputDataPath: pulumi.String("gs://my-bucket/predictions/"),
-            OutputFormat:   pulumi.String("jsonl"),
+        // Optional: GPU acceleration
+        AcceleratorType:  pulumi.String("NVIDIA_L4"),
+        AcceleratorCount: pulumi.Int(1),
 
-            // Resource allocation
-            MachineType:          pulumi.String("g2-standard-8"),
-            StartingReplicaCount: pulumi.Int(2),
-            MaxReplicaCount:      pulumi.Int(5),
-            BatchSize:            pulumi.Int(64),
-
-            // Optional: GPU acceleration
-            AcceleratorType:  pulumi.String("NVIDIA_L4"),
-            AcceleratorCount: pulumi.Int(1),
-
-            // Metadata
-            Labels: map[string]string{
-                "environment": "production",
-                "model-type":  "bert",
-                "use-case":    "sentiment-analysis",
-            },
-        })
-        if err != nil {
-            return err
-        }
-
-        // Export useful outputs
-        ctx.Export("batchJobName", batchJob.GetBatchPredictionJob().Name)
-        ctx.Export("modelServiceAccount", batchJob.GetModelServiceAccount().Email)
-
-        return nil
+        // Metadata
+        Labels: map[string]string{
+            "environment": "production",
+            "model-type":  "bert",
+            "use-case":    "sentiment-analysis",
+        },
     })
-}
+    if err != nil {
+        return err
+    }
+
+    // Export useful outputs
+    ctx.Export("batchJobName", batchJob.GetBatchPredictionJob().Name)
+    ctx.Export("modelServiceAccount", batchJob.GetModelServiceAccount().Email)
+
+    return nil
+})
 ```
 
 ## Features
 
-- **Vertex Batched Prediction**: launch async AI prediction jobs
-- **Model Upload and Deployment**: model artifacts automatically uploaded to GCS and deployment to the model registry
+- **Batch Job Lifecycle**: launch async jobs, replace on every run or ignore old runs
+- **Model Upload and Deployment**: automatic model artifacts upload to GCS and deployment to the model registry
 - **Model input and outputs storage**: model inputs and outputs automatically stored in GCS
 - **Service Account**: dedicated service account with necessary IAM permissions
 - **Bring your own docker image**: set `ModelImageURL` to serve the model with a custom image and Custom Prediction Routines
