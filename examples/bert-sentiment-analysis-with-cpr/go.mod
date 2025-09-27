@@ -7,7 +7,7 @@ require (
 	github.com/pulumi/pulumi/sdk/v3 v3.197.0
 )
 
-replace github.com/davidmontoyago/pulumi-gcp-ai-batch => ../
+replace github.com/davidmontoyago/pulumi-gcp-ai-batch => ../../
 
 require (
 	dario.cat/mergo v1.0.2 // indirect

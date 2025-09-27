@@ -26,7 +26,7 @@ image:
 
 pulumi-init:
 	pulumi login file://.state
-	pulumi stack init example
+	pulumi stack init bert-sentiment-analysis-with-cpr
 
 push-image:
 	docker tag $${REGISTRY_URL}/${MODEL_SERVER_IMAGE_NAME}:latest $${REGISTRY_URL}/${MODEL_SERVER_IMAGE_NAME}:$${GITHUB_SHA:-latest}

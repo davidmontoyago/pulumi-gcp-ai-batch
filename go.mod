@@ -101,4 +101,4 @@ require (
 	lukechampine.com/frand v1.4.2 // indirect
 )
 
-replace github.com/davidmontoyago/pulumi-gcp-ai-batch/example => ./example/
+replace github.com/davidmontoyago/pulumi-gcp-ai-batch/example-bert-sentiment-analysis-with-cpr => ./example/bert-sentiment-analysis-with-cpr
