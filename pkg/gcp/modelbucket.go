@@ -58,7 +58,7 @@ func (v *AIBatch) uploadDirectoryToBucket(ctx *pulumi.Context, localDir, baseObj
 			Bucket:      v.artifactsBucket.Name,
 			Source:      pulumi.NewFileAsset(filePath),
 			ContentType: pulumi.String(contentType),
-		})
+		}, pulumi.Parent(v))
 		if err != nil {
 			return fmt.Errorf("error creating bucket object for %s: %w", filePath, err)
 		}
@@ -121,7 +121,7 @@ func (v *AIBatch) uploadModelToBucket(ctx *pulumi.Context, modelDir string, mode
 			Enabled: pulumi.Bool(true), // Enable versioning for audit trail
 		},
 		Labels: bucketLabels,
-	})
+	}, pulumi.Parent(v))
 	if err != nil {
 		return pulumi.StringOutput{}, nil, fmt.Errorf("failed to create artifacts bucket: %w", err)
 	}
