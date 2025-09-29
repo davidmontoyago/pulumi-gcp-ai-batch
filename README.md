@@ -62,16 +62,17 @@ pulumi.Run(func(ctx *pulumi.Context) error {
 - **Batch Job Lifecycle**: launch async jobs, replace on every run or ignore old runs
 - **Model Upload and Deployment**: automatic model artifacts upload to GCS and deployment to the model registry
 - **Model input and outputs storage**: model inputs and outputs automatically stored in GCS
-- **Service Account**: dedicated service account with necessary IAM permissions
+- **Service Account**: dedicated service account with necessary IAM permissions (not required for garden models)
 - **Bring your own docker image**: set `ModelImageURL` to serve the model with a custom image and Custom Prediction Routines
 
 See:
-- https://cloud.google.com/blog/topics/developers-practitioners/simplify-model-serving-custom-prediction-routines-vertex-ai
+- Third party models with custom prediction routines: https://cloud.google.com/blog/topics/developers-practitioners/simplify-model-serving-custom-prediction-routines-vertex-ai
+- Garden models supported: https://cloud.google.com/vertex-ai/docs/predictions/get-batch-model-garden#models
+- https://cloud.google.com/compute/docs/gpus#gpu-models
 - https://cloud.google.com/go/docs/reference/cloud.google.com/go/aiplatform/latest/apiv1
 - https://cloud.google.com/vertex-ai/docs/model-registry/import-model
 - https://github.com/davidmontoyago/pulumi-gcp-vertex-model-deployment
 - https://cloud.google.com/vertex-ai/docs/predictions/pre-built-containers
-- https://cloud.google.com/compute/docs/gpus#gpu-models
 
 ## Install
 

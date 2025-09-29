@@ -72,30 +72,22 @@ func TestLoadConfig_RequiredFields(t *testing.T) {
 			envVars: map[string]string{
 				"GCP_PROJECT":                         "test-project",
 				"GCP_REGION":                          "us-central1",
+				"MODEL_NAME":                          "test-model",
 				"MODEL_PREDICTION_INPUT_SCHEMA_PATH":  "input_schema.yaml",
 				"MODEL_PREDICTION_OUTPUT_SCHEMA_PATH": "output_schema.yaml",
 			},
-			expectError: true,
+			expectError: false,
 		},
 		{
-			name: "missing MODEL_PREDICTION_INPUT_SCHEMA_PATH",
+			name: "missing MODEL_NAME",
 			envVars: map[string]string{
 				"GCP_PROJECT":                         "test-project",
 				"GCP_REGION":                          "us-central1",
 				"MODEL_DIR":                           "./models/test-model",
+				"MODEL_PREDICTION_INPUT_SCHEMA_PATH":  "input_schema.yaml",
 				"MODEL_PREDICTION_OUTPUT_SCHEMA_PATH": "output_schema.yaml",
 			},
-			expectError: true,
-		},
-		{
-			name: "missing MODEL_PREDICTION_OUTPUT_SCHEMA_PATH",
-			envVars: map[string]string{
-				"GCP_PROJECT":                        "test-project",
-				"GCP_REGION":                         "us-central1",
-				"MODEL_DIR":                          "./models/test-model",
-				"MODEL_PREDICTION_INPUT_SCHEMA_PATH": "input_schema.yaml",
-			},
-			expectError: true,
+			expectError: false,
 		},
 	}
 
@@ -125,7 +117,11 @@ func TestLoadConfig_RequiredFields(t *testing.T) {
 				require.NotNil(t, cfg)
 				assert.Equal(t, "test-project", cfg.GCPProject)
 				assert.Equal(t, "us-central1", cfg.GCPRegion)
-				assert.Equal(t, "./models/test-model", cfg.ModelDir)
+				if cfg.ModelName != "" {
+					assert.Equal(t, "test-model", cfg.ModelName)
+				} else {
+					assert.Equal(t, "./models/test-model", cfg.ModelDir)
+				}
 				assert.Equal(t, "input_schema.yaml", cfg.ModelPredictionInputSchemaPath)
 				assert.Equal(t, "output_schema.yaml", cfg.ModelPredictionOutputSchemaPath)
 				assert.Equal(t, "us-docker.pkg.dev/vertex-ai/prediction/tf2-cpu.2-15:latest", cfg.ModelImageURL)
@@ -190,9 +186,7 @@ func TestLoadConfig_Defaults(t *testing.T) {
 	// Verify required fields are set
 	assert.Equal(t, "test-project", cfg.GCPProject)
 	assert.Equal(t, "us-central1", cfg.GCPRegion)
-	assert.Equal(t, "./models/test-model", cfg.ModelDir)
-	assert.Equal(t, "input_schema.yaml", cfg.ModelPredictionInputSchemaPath)
-	assert.Equal(t, "output_schema.yaml", cfg.ModelPredictionOutputSchemaPath)
+	assert.Equal(t, "test-model", cfg.ModelName)
 
 	// Verify defaults
 	assert.Equal(t, "", cfg.ModelPredictionBehaviorSchemaPath)

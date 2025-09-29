@@ -50,12 +50,12 @@ type AIBatch struct {
 	retainJobOnDelete bool
 
 	// Core resources
-	modelServiceAccount *serviceaccount.Account
-	batchPredictionJob  *v1beta1.BatchPredictionJob
-	artifactsBucket     *storage.Bucket
-	modelDeployment     *vertexmodeldeployment.VertexModelDeployment
-	uploadedModelFiles  pulumi.StringArrayOutput
-	jobState            pulumi.StringOutput
+	modelServiceAccountEmail pulumi.StringOutput
+	batchPredictionJob       *v1beta1.BatchPredictionJob
+	artifactsBucket          *storage.Bucket
+	modelDeployment          *vertexmodeldeployment.VertexModelDeployment
+	uploadedModelFiles       pulumi.StringArrayOutput
+	jobState                 pulumi.StringOutput
 
 	// IAM bindings for the model service account
 	iamMembers    []*projects.IAMMember
@@ -148,7 +148,7 @@ func NewAIBatch(ctx *pulumi.Context, name string, args *AIBatchArgs, opts ...pul
 
 	// Prepare resource outputs
 	outputs := pulumi.Map{
-		"vertex_ai_batch_model_service_account_email": AIBatch.modelServiceAccount.Email,
+		"vertex_ai_batch_model_service_account_email": AIBatch.modelServiceAccountEmail,
 		"vertex_ai_batch_job_id":                      AIBatch.batchPredictionJob.ID(),
 		"vertex_ai_batch_job_name":                    AIBatch.batchPredictionJob.Name,
 		"vertex_ai_batch_job_display_name":            AIBatch.batchPredictionJob.DisplayName,
@@ -181,21 +181,21 @@ func NewAIBatch(ctx *pulumi.Context, name string, args *AIBatchArgs, opts ...pul
 // deploy provisions all the resources for the Vertex AI Batch Prediction Job.
 func (v *AIBatch) deploy(ctx *pulumi.Context, args *AIBatchArgs) error {
 	// Create service account for the model deployment
-	modelServiceAccount, err := v.createModelServiceAccount(ctx)
+	modelServiceAccountEmail, err := v.createModelServiceAccount(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to create model service account: %w", err)
 	}
-	v.modelServiceAccount = modelServiceAccount
+	v.modelServiceAccountEmail = modelServiceAccountEmail
 
 	// Grant necessary IAM roles to the model service account
-	iamMembers, err := v.grantModelIAMRoles(ctx, modelServiceAccount.Email)
+	iamMembers, err := v.grantModelIAMRoles(ctx, modelServiceAccountEmail)
 	if err != nil {
 		return fmt.Errorf("failed to grant model IAM roles: %w", err)
 	}
 	v.iamMembers = iamMembers
 
 	if args.EnablePrivateRegistryAccess {
-		v.repoIamMember, err = v.grantRegistryIAMAccess(ctx, modelServiceAccount.Email)
+		v.repoIamMember, err = v.grantRegistryIAMAccess(ctx, modelServiceAccountEmail)
 		if err != nil {
 			return fmt.Errorf("failed to grant registry IAM access: %w", err)
 		}
@@ -219,7 +219,7 @@ func (v *AIBatch) deploy(ctx *pulumi.Context, args *AIBatchArgs) error {
 	var modelDeployment *vertexmodeldeployment.VertexModelDeployment
 	if args.ModelDir != "" {
 		// Upload the model to the model registry and get a model ID for the job
-		modelDeployment, err = v.deployModel(ctx, modelArtifactsURI, modelServiceAccount.Email, uploadedModelArtifacts)
+		modelDeployment, err = v.deployModel(ctx, modelArtifactsURI, modelServiceAccountEmail, uploadedModelArtifacts)
 		if err != nil {
 			return fmt.Errorf("failed to deploy model /o\\: %w", err)
 		}
@@ -227,7 +227,7 @@ func (v *AIBatch) deploy(ctx *pulumi.Context, args *AIBatchArgs) error {
 	}
 
 	// Create the batch prediction job
-	batchPredictionJob, err := v.createBatchPredictionJob(ctx, modelDeployment, inputDataBucketURI, modelServiceAccount.Email)
+	batchPredictionJob, err := v.createBatchPredictionJob(ctx, modelDeployment, inputDataBucketURI, modelServiceAccountEmail)
 	if err != nil {
 		return fmt.Errorf("failed to create batch prediction job: %w", err)
 	}
@@ -240,9 +240,9 @@ func (v *AIBatch) deploy(ctx *pulumi.Context, args *AIBatchArgs) error {
 
 // Getter methods for accessing internal resources
 
-// GetModelServiceAccount returns the model service account resource.
-func (v *AIBatch) GetModelServiceAccount() *serviceaccount.Account {
-	return v.modelServiceAccount
+// GetModelServiceAccountEmail returns the model service account email.
+func (v *AIBatch) GetModelServiceAccountEmail() pulumi.StringOutput {
+	return v.modelServiceAccountEmail
 }
 
 // GetBatchPredictionJob returns the Vertex AI Batch Prediction Job resource.

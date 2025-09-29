@@ -13,7 +13,6 @@ func (v *AIBatch) grantModelIAMRoles(ctx *pulumi.Context, serviceAccountEmail pu
 	// IAM roles specific to what the batch prediction job needs to operate
 	roles := []string{
 		"roles/storage.bucketViewer",    // List and get buckets
-		"roles/storage.objectViewer",    // For accessing model artifacts in GCS
 		"roles/storage.objectCreator",   // For writing prediction results to GCS
 		"roles/logging.logWriter",       // For writing logs during prediction
 		"roles/monitoring.metricWriter", // For writing custom metrics
@@ -38,7 +37,7 @@ func (v *AIBatch) grantModelIAMRoles(ctx *pulumi.Context, serviceAccountEmail pu
 }
 
 // createModelServiceAccount creates a service account for Vertex AI operations.
-func (v *AIBatch) createModelServiceAccount(ctx *pulumi.Context) (*serviceaccount.Account, error) {
+func (v *AIBatch) createModelServiceAccount(ctx *pulumi.Context) (pulumi.StringOutput, error) {
 	accountID := v.NewResourceName("model-account", "", 30)
 
 	modelServiceAccount, err := serviceaccount.NewAccount(ctx, v.NewResourceName("model-account", "", 63), &serviceaccount.AccountArgs{
@@ -48,8 +47,8 @@ func (v *AIBatch) createModelServiceAccount(ctx *pulumi.Context) (*serviceaccoun
 		Description: pulumi.String("Service account for deployed model operations"),
 	}, pulumi.Parent(v))
 	if err != nil {
-		return nil, fmt.Errorf("failed to create model service account: %w", err)
+		return pulumi.StringOutput{}, fmt.Errorf("failed to create model service account: %w", err)
 	}
 
-	return modelServiceAccount, nil
+	return modelServiceAccount.Email, nil
 }

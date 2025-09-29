@@ -15,9 +15,10 @@ import (
 type Config struct {
 	GCPProject                        string `envconfig:"GCP_PROJECT" required:"true"`
 	GCPRegion                         string `envconfig:"GCP_REGION" required:"true"`
-	ModelDir                          string `envconfig:"MODEL_DIR" required:"true"`
-	ModelPredictionInputSchemaPath    string `envconfig:"MODEL_PREDICTION_INPUT_SCHEMA_PATH" required:"true"`
-	ModelPredictionOutputSchemaPath   string `envconfig:"MODEL_PREDICTION_OUTPUT_SCHEMA_PATH" required:"true"`
+	ModelDir                          string `envconfig:"MODEL_DIR" required:"false"`
+	ModelName                         string `envconfig:"MODEL_NAME" required:"false"`
+	ModelPredictionInputSchemaPath    string `envconfig:"MODEL_PREDICTION_INPUT_SCHEMA_PATH" required:"false"`
+	ModelPredictionOutputSchemaPath   string `envconfig:"MODEL_PREDICTION_OUTPUT_SCHEMA_PATH" required:"false"`
 	ModelPredictionBehaviorSchemaPath string `envconfig:"MODEL_PREDICTION_BEHAVIOR_SCHEMA_PATH" default:""`
 	ModelBucketBasePath               string `envconfig:"MODEL_BUCKET_BASE_PATH" default:"model/"`
 	ModelImageURL                     string `envconfig:"MODEL_IMAGE_URL" default:"us-docker.pkg.dev/vertex-ai/prediction/tf2-cpu.2-15:latest"`
@@ -54,6 +55,7 @@ func LoadConfig() (*Config, error) {
 	log.Printf("  GCP Project: %s", config.GCPProject)
 	log.Printf("  GCP Region: %s", config.GCPRegion)
 	log.Printf("  Model Dir: %s", config.ModelDir)
+	log.Printf("  Model Name: %s", config.ModelName)
 	log.Printf("  Model Prediction Input Schema Path: %s", config.ModelPredictionInputSchemaPath)
 	log.Printf("  Model Prediction Output Schema Path: %s", config.ModelPredictionOutputSchemaPath)
 	log.Printf("  Model Prediction Behavior Schema Path: %s", config.ModelPredictionBehaviorSchemaPath)
@@ -84,6 +86,7 @@ func (c *Config) ToAIBatchArgs() *gcp.AIBatchArgs {
 		Project:                         c.GCPProject,
 		Region:                          c.GCPRegion,
 		ModelDir:                        c.ModelDir,
+		ModelName:                       c.ModelName,
 		ModelPredictionInputSchemaPath:  c.ModelPredictionInputSchemaPath,
 		ModelPredictionOutputSchemaPath: c.ModelPredictionOutputSchemaPath,
 		ModelBucketBasePath:             c.ModelBucketBasePath,

@@ -102,3 +102,5 @@ require (
 )
 
 replace github.com/davidmontoyago/pulumi-gcp-ai-batch/example-bert-sentiment-analysis-with-cpr => ./example/bert-sentiment-analysis-with-cpr
+
+replace github.com/davidmontoyago/pulumi-gcp-ai-batch/example-gemma-sentiment-analysis => ./examples/gemma-sentiment-analysis

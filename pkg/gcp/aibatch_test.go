@@ -100,7 +100,6 @@ func (m *AIBatchMocks) NewResource(args pulumi.MockResourceArgs) (string, resour
 		// Expected outputs: name, accountId, project, displayName, email
 	case "gcp:projects/iAMMember:IAMMember":
 		// Mock one of the expected roles - storage.objectViewer, logging.logWriter, or monitoring.metricWriter
-		outputs["role"] = "roles/storage.objectViewer"
 		outputs["member"] = "serviceAccount:test-user@example.com"
 		outputs["project"] = testProjectName
 		// Expected outputs: role, member, project
@@ -293,14 +292,13 @@ func TestNewAIBatch_HappyPath(t *testing.T) {
 		})
 		assert.Equal(t, "test-model/predictions/", <-outputDataURIPrefixCh, "Output data URI prefix should match")
 
-		// Verify model service account
-		modelServiceAccount := AIBatch.GetModelServiceAccount()
-		require.NotNil(t, modelServiceAccount, "Model service account should not be nil")
+		// Verify model service account email
+		modelServiceAccountEmail := AIBatch.GetModelServiceAccountEmail()
 
 		// Assert service account email is set correctly
 		serviceAccountEmailCh := make(chan string, 1)
 		defer close(serviceAccountEmailCh)
-		modelServiceAccount.Email.ApplyT(func(email string) error {
+		modelServiceAccountEmail.ApplyT(func(email string) error {
 			serviceAccountEmailCh <- email
 
 			return nil
@@ -362,7 +360,7 @@ func TestNewAIBatch_HappyPath(t *testing.T) {
 
 		// Verify IAM members for batch prediction job
 		iamMembers := AIBatch.GetIAMMembers()
-		require.Len(t, iamMembers, 6, "Should have exactly 6 IAM members (storage.bucketViewer, storage.objectViewer, storage.objectCreator, logging.logWriter, monitoring.metricWriter, aiplatform.user)")
+		require.Len(t, iamMembers, 5, "Should have exactly 5 IAM members (storage.bucketViewer, storage.objectCreator, logging.logWriter, monitoring.metricWriter, aiplatform.user)")
 
 		// Check that IAM members have the expected roles
 		for _, member := range iamMembers {
@@ -375,7 +373,6 @@ func TestNewAIBatch_HappyPath(t *testing.T) {
 			role := <-roleCh
 			assert.Contains(t, []string{
 				"roles/storage.bucketViewer",
-				"roles/storage.objectViewer",
 				"roles/storage.objectCreator",
 				"roles/logging.logWriter",
 				"roles/monitoring.metricWriter",
@@ -788,14 +785,13 @@ func TestNewAIBatch_WithModelFromTheGarden(t *testing.T) {
 		})
 		assert.Equal(t, "garden-model/predictions/", <-outputDataURIPrefixCh, "Output data URI prefix should match")
 
-		// Verify model service account is still created
-		modelServiceAccount := AIBatch.GetModelServiceAccount()
-		require.NotNil(t, modelServiceAccount, "Model service account should not be nil")
+		// Verify model service account email is still created
+		modelServiceAccountEmail := AIBatch.GetModelServiceAccountEmail()
 
 		// Assert service account email is set correctly
 		serviceAccountEmailCh := make(chan string, 1)
 		defer close(serviceAccountEmailCh)
-		modelServiceAccount.Email.ApplyT(func(email string) error {
+		modelServiceAccountEmail.ApplyT(func(email string) error {
 			serviceAccountEmailCh <- email
 
 			return nil
@@ -842,7 +838,7 @@ func TestNewAIBatch_WithModelFromTheGarden(t *testing.T) {
 
 		// Verify IAM members for batch prediction job (same as regular models)
 		iamMembers := AIBatch.GetIAMMembers()
-		require.Len(t, iamMembers, 6, "Should have exactly 6 IAM members (storage.bucketViewer, storage.objectViewer, storage.objectCreator, logging.logWriter, monitoring.metricWriter, aiplatform.user)")
+		require.Len(t, iamMembers, 5, "Should have exactly 5 IAM members (storage.bucketViewer, storage.objectCreator, logging.logWriter, monitoring.metricWriter, aiplatform.user)")
 
 		// Check that IAM members have the expected roles
 		for _, member := range iamMembers {
@@ -855,7 +851,6 @@ func TestNewAIBatch_WithModelFromTheGarden(t *testing.T) {
 			role := <-roleCh
 			assert.Contains(t, []string{
 				"roles/storage.bucketViewer",
-				"roles/storage.objectViewer",
 				"roles/storage.objectCreator",
 				"roles/logging.logWriter",
 				"roles/monitoring.metricWriter",
