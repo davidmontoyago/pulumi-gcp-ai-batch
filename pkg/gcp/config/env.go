@@ -74,7 +74,6 @@ func LoadConfig() (*Config, error) {
 	log.Printf("  Batch Size: %d", config.BatchSize)
 	log.Printf("  Accelerator Type: %s", config.AcceleratorType)
 	log.Printf("  Accelerator Count: %d", config.AcceleratorCount)
-	log.Printf("  Service Account: %s", config.ServiceAccount)
 	log.Printf("  Retain Job On Delete: %t", config.RetainJobOnDelete)
 
 	return &config, nil

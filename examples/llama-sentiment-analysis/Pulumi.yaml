@@ -1,0 +1,3 @@
+name: llama-sentiment-analysis
+description: LLama sentiment analysis batch job
+runtime: go
