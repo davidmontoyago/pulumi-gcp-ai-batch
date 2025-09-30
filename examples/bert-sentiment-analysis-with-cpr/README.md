@@ -15,7 +15,7 @@ See:
 ## Deploy
 
 ```sh
-cd ./example
+cd ./example/bert-sentiment-analysis-with-cpr
 
 # set env vars in ./config/env.example
 
