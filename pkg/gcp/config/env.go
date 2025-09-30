@@ -28,16 +28,16 @@ type Config struct {
 	ModelDisplayName                  string `envconfig:"MODEL_DISPLAY_NAME" default:""`
 
 	// Batch prediction job specific configuration
-	InputDataURI         string `envconfig:"INPUT_DATA_URI" default:""`
+	InputDataURI         string `envconfig:"INPUT_DATA_URI" default:"inputs/"`
+	InputFileName        string `envconfig:"INPUT_FILE_NAME" default:"*.jsonl"`
 	InputFormat          string `envconfig:"INPUT_FORMAT" default:"jsonl"`
-	OutputDataURIPrefix  string `envconfig:"OUTPUT_DATA_URI_PREFIX" default:""`
+	OutputDataURIPrefix  string `envconfig:"OUTPUT_DATA_URI_PREFIX" default:"predictions/"`
 	OutputFormat         string `envconfig:"OUTPUT_FORMAT" default:"jsonl"`
 	StartingReplicaCount int    `envconfig:"STARTING_REPLICA_COUNT" default:"1"`
 	MaxReplicaCount      int    `envconfig:"MAX_REPLICA_COUNT" default:"3"`
 	BatchSize            int    `envconfig:"BATCH_SIZE" default:"0"`
 	AcceleratorType      string `envconfig:"ACCELERATOR_TYPE" default:"ACCELERATOR_TYPE_UNSPECIFIED"`
 	AcceleratorCount     int    `envconfig:"ACCELERATOR_COUNT" default:"1"`
-	ServiceAccount       string `envconfig:"SERVICE_ACCOUNT" default:""`
 	RetainJobOnDelete    bool   `envconfig:"RETAIN_JOB_ON_DELETE" default:"false"`
 }
 
@@ -66,6 +66,7 @@ func LoadConfig() (*Config, error) {
 	log.Printf("  Job Display Name: %s", config.JobDisplayName)
 	log.Printf("  Model Display Name: %s", config.ModelDisplayName)
 	log.Printf("  Input Data URI: %s", config.InputDataURI)
+	log.Printf("  Input File Name: %s", config.InputFileName)
 	log.Printf("  Input Format: %s", config.InputFormat)
 	log.Printf("  Output Data URI Prefix: %s", config.OutputDataURIPrefix)
 	log.Printf("  Output Format: %s", config.OutputFormat)
@@ -96,6 +97,7 @@ func (c *Config) ToAIBatchArgs() *gcp.AIBatchArgs {
 		// Batch prediction job specific fields
 		InputDataPath:        c.InputDataURI,
 		InputFormat:          c.InputFormat,
+		InputFileName:        c.InputFileName,
 		OutputDataPath:       pulumi.String(c.OutputDataURIPrefix),
 		OutputFormat:         pulumi.String(c.OutputFormat),
 		StartingReplicaCount: pulumi.Int(c.StartingReplicaCount),

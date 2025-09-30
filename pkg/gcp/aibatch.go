@@ -8,9 +8,8 @@ import (
 	vertexmodeldeployment "github.com/davidmontoyago/pulumi-gcp-vertex-model-deployment/sdk/go/pulumi-gcp-vertex-model-deployment/resources"
 	"github.com/pulumi/pulumi-gcp/sdk/v8/go/gcp/artifactregistry"
 	"github.com/pulumi/pulumi-gcp/sdk/v8/go/gcp/projects"
-	"github.com/pulumi/pulumi-gcp/sdk/v8/go/gcp/serviceaccount"
 	"github.com/pulumi/pulumi-gcp/sdk/v8/go/gcp/storage"
-	"github.com/pulumi/pulumi-google-native/sdk/go/google/aiplatform/v1beta1"
+	v1 "github.com/pulumi/pulumi-google-native/sdk/go/google/aiplatform/v1"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
@@ -35,6 +34,7 @@ type AIBatch struct {
 	// Batch prediction job specific fields
 	InputDataPath        pulumi.StringOutput
 	InputFormat          pulumi.StringOutput
+	InputFileName        pulumi.StringOutput
 	OutputDataPath       pulumi.StringOutput
 	OutputFormat         pulumi.StringOutput
 	StartingReplicaCount pulumi.IntOutput
@@ -51,7 +51,7 @@ type AIBatch struct {
 
 	// Core resources
 	modelServiceAccountEmail pulumi.StringOutput
-	batchPredictionJob       *v1beta1.BatchPredictionJob
+	batchPredictionJob       *v1.BatchPredictionJob
 	artifactsBucket          *storage.Bucket
 	modelDeployment          *vertexmodeldeployment.VertexModelDeployment
 	uploadedModelFiles       pulumi.StringArrayOutput
@@ -89,7 +89,10 @@ func NewAIBatch(ctx *pulumi.Context, name string, args *AIBatchArgs, opts ...pul
 
 	// Model input data defaults
 	if args.InputDataPath == "" {
-		args.InputDataPath = "inputs" // Default to local "inputs" directory
+		args.InputDataPath = "inputs"
+	}
+	if args.InputFileName == "" {
+		args.InputFileName = "*.jsonl"
 	}
 	if args.InputFormat == "" {
 		args.InputFormat = "jsonl"
@@ -115,6 +118,7 @@ func NewAIBatch(ctx *pulumi.Context, name string, args *AIBatchArgs, opts ...pul
 		// Model input data
 		InputDataPath: pulumi.String(args.InputDataPath).ToStringOutput(),
 		InputFormat:   pulumi.String(args.InputFormat).ToStringOutput(),
+		InputFileName: pulumi.String(args.InputFileName).ToStringOutput(),
 
 		// Batch prediction job specific defaults
 		OutputDataPath:       setDefaultString(args.OutputDataPath, "predictions/"),
@@ -246,7 +250,7 @@ func (v *AIBatch) GetModelServiceAccountEmail() pulumi.StringOutput {
 }
 
 // GetBatchPredictionJob returns the Vertex AI Batch Prediction Job resource.
-func (v *AIBatch) GetBatchPredictionJob() *v1beta1.BatchPredictionJob {
+func (v *AIBatch) GetBatchPredictionJob() *v1.BatchPredictionJob {
 	return v.batchPredictionJob
 }
 

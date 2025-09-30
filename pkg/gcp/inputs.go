@@ -14,12 +14,14 @@ type AIBatchArgs struct {
 
 	// --- Model details ---
 
-	// Container image URL for the model server. Defaults to Google's TensorFlow 2.15 CPU prediction container.
+	// Container image URL for the model server. Only required when ModelDir is set.
+	// Defaults to Google's TensorFlow 2.15 CPU prediction container.
 	// Example: "gcr.io/my-project/my-model:latest"
 	ModelImageURL pulumi.StringInput
 	// Path to the model artifacts for deployment, including the schemas. Required if ModelName is not set.
 	ModelDir string
 	// Name of the model from the garden. Required if ModelDir is not set.
+	// E.g.: publishers/google/models/gemma2@gemma-2-2b-it
 	ModelName string
 	// Path to the YAML file within ModelDir with the model prediction input schema. Required if ModelDir is set.
 	ModelPredictionInputSchemaPath string
@@ -55,6 +57,8 @@ type AIBatchArgs struct {
 	InputDataPath string
 	// Format of input data ("jsonl", "csv", "bigquery", etc.). Defaults to "jsonl"
 	InputFormat string
+	// Name of the input data file. Defaults to "*.jsonl"
+	InputFileName string
 
 	// --- Output data configuration ---
 	// Path to the directory within the bucket where the output data will be stored.

@@ -103,7 +103,7 @@ func (m *AIBatchMocks) NewResource(args pulumi.MockResourceArgs) (string, resour
 		outputs["member"] = "serviceAccount:test-user@example.com"
 		outputs["project"] = testProjectName
 		// Expected outputs: role, member, project
-	case "google-native:aiplatform/v1beta1:BatchPredictionJob":
+	case "google-native:aiplatform/v1:BatchPredictionJob":
 		outputs["name"] = args.Name
 		outputs["project"] = testProjectName
 		outputs["location"] = testRegion
