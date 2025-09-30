@@ -3,6 +3,7 @@ package gcp
 import (
 	"fmt"
 
+	"github.com/pulumi/pulumi-gcp/sdk/v8/go/gcp/artifactregistry"
 	"github.com/pulumi/pulumi-gcp/sdk/v8/go/gcp/projects"
 	"github.com/pulumi/pulumi-gcp/sdk/v8/go/gcp/serviceaccount"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -51,4 +52,27 @@ func (v *AIBatch) createModelServiceAccount(ctx *pulumi.Context) (pulumi.StringO
 	}
 
 	return modelServiceAccount.Email, nil
+}
+
+func (v *AIBatch) setupCustomModelIAM(ctx *pulumi.Context, args *AIBatchArgs) (pulumi.StringOutput, []*projects.IAMMember, *artifactregistry.RepositoryIamMember, error) {
+	modelServiceAccountEmail, err := v.createModelServiceAccount(ctx)
+	if err != nil {
+		return pulumi.StringOutput{}, nil, nil, fmt.Errorf("failed to create model service account: %w", err)
+	}
+
+	// Grant necessary IAM roles to the model service account
+	iamMembers, err := v.grantModelIAMRoles(ctx, modelServiceAccountEmail)
+	if err != nil {
+		return pulumi.StringOutput{}, nil, nil, fmt.Errorf("failed to grant model IAM roles: %w", err)
+	}
+
+	var repoIamMember *artifactregistry.RepositoryIamMember
+	if args.EnablePrivateRegistryAccess {
+		repoIamMember, err = v.grantRegistryIAMAccess(ctx, modelServiceAccountEmail)
+		if err != nil {
+			return pulumi.StringOutput{}, nil, nil, fmt.Errorf("failed to grant registry IAM access: %w", err)
+		}
+	}
+
+	return modelServiceAccountEmail, iamMembers, repoIamMember, nil
 }

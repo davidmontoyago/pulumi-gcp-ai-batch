@@ -785,19 +785,9 @@ func TestNewAIBatch_WithModelFromTheGarden(t *testing.T) {
 		})
 		assert.Equal(t, "garden-model/predictions/", <-outputDataURIPrefixCh, "Output data URI prefix should match")
 
-		// Verify model service account email is still created
+		// Verify model service account email is not created for garden models
 		modelServiceAccountEmail := AIBatch.GetModelServiceAccountEmail()
-
-		// Assert service account email is set correctly
-		serviceAccountEmailCh := make(chan string, 1)
-		defer close(serviceAccountEmailCh)
-		modelServiceAccountEmail.ApplyT(func(email string) error {
-			serviceAccountEmailCh <- email
-
-			return nil
-		})
-		expectedEmail := "test-garden-batch-model-account@test-project.iam.gserviceaccount.com"
-		assert.Equal(t, expectedEmail, <-serviceAccountEmailCh, "Model service account email should match expected pattern")
+		assert.Equal(t, modelServiceAccountEmail, pulumi.StringOutput{}, "Model service account email should be nil for garden models")
 
 		// Verify batch prediction job is created
 		batchPredictionJob := AIBatch.GetBatchPredictionJob()
@@ -838,7 +828,7 @@ func TestNewAIBatch_WithModelFromTheGarden(t *testing.T) {
 
 		// Verify IAM members for batch prediction job (same as regular models)
 		iamMembers := AIBatch.GetIAMMembers()
-		require.Len(t, iamMembers, 5, "Should have exactly 5 IAM members (storage.bucketViewer, storage.objectCreator, logging.logWriter, monitoring.metricWriter, aiplatform.user)")
+		require.Len(t, iamMembers, 0, "Should have exactly 0 IAM members for garden models")
 
 		// Check that IAM members have the expected roles
 		for _, member := range iamMembers {

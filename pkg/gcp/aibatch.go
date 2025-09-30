@@ -184,26 +184,25 @@ func NewAIBatch(ctx *pulumi.Context, name string, args *AIBatchArgs, opts ...pul
 
 // deploy provisions all the resources for the Vertex AI Batch Prediction Job.
 func (v *AIBatch) deploy(ctx *pulumi.Context, args *AIBatchArgs) error {
-	// Create service account for the model deployment
-	modelServiceAccountEmail, err := v.createModelServiceAccount(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to create model service account: %w", err)
-	}
-	v.modelServiceAccountEmail = modelServiceAccountEmail
 
-	// Grant necessary IAM roles to the model service account
-	iamMembers, err := v.grantModelIAMRoles(ctx, modelServiceAccountEmail)
-	if err != nil {
-		return fmt.Errorf("failed to grant model IAM roles: %w", err)
-	}
-	v.iamMembers = iamMembers
+	isCustomModel := args.ModelDir != ""
 
-	if args.EnablePrivateRegistryAccess {
-		v.repoIamMember, err = v.grantRegistryIAMAccess(ctx, modelServiceAccountEmail)
+	var modelServiceAccountEmail pulumi.StringOutput
+	if isCustomModel {
+		// Custom model. Run it with custom GSA.
+
+		// Create service account for the model deployment
+		modelServiceAccountEmail, iamMembers, repoIamMember, err := v.setupCustomModelIAM(ctx, args)
 		if err != nil {
-			return fmt.Errorf("failed to grant registry IAM access: %w", err)
+			return fmt.Errorf("failed to setup custom model IAM: %w", err)
 		}
+		v.modelServiceAccountEmail = modelServiceAccountEmail
+		v.iamMembers = iamMembers
+		v.repoIamMember = repoIamMember
 	}
+	// Else, it's a model from the garden. We have to run it with the default agent GSA,
+	// otherwise the internal endpoint automation fails with missing permissions
+	// ('storage.objects.list') error on bucket "vertex-model-garden-restricted-us".
 
 	// Upload model artifacts (including schemas) to bucket
 	modelArtifactsURI, uploadedModelArtifacts, err := v.setupModelBucket(ctx, args.ModelDir, args.ModelBucketBasePath, args.Labels)
@@ -221,7 +220,7 @@ func (v *AIBatch) deploy(ctx *pulumi.Context, args *AIBatchArgs) error {
 	v.uploadedModelFiles = collectBucketObjectNames(uploadedModelArtifacts, uploadedDataObjects)
 
 	var modelDeployment *vertexmodeldeployment.VertexModelDeployment
-	if args.ModelDir != "" {
+	if isCustomModel {
 		// Upload the model to the model registry and get a model ID for the job
 		modelDeployment, err = v.deployModel(ctx, modelArtifactsURI, modelServiceAccountEmail, uploadedModelArtifacts)
 		if err != nil {

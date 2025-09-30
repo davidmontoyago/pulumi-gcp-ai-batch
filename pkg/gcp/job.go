@@ -18,7 +18,9 @@ func (v *AIBatch) createBatchPredictionJob(ctx *pulumi.Context,
 	dependencies := []pulumi.Resource{v.artifactsBucket}
 	var modelName pulumi.StringOutput
 
-	if modelDeployment != nil {
+	isCustomModel := modelDeployment != nil
+
+	if isCustomModel {
 		dependencies = append(dependencies, modelDeployment)
 		modelName = modelDeployment.ModelName
 	} else {
@@ -71,11 +73,13 @@ func (v *AIBatch) createBatchPredictionJob(ctx *pulumi.Context,
 		InputConfig:        inputConfig,
 		OutputConfig:       outputConfig,
 		DedicatedResources: dedicatedResources,
-		ServiceAccount:     serviceAccountEmail,
 		ManualBatchTuningParameters: &v1.GoogleCloudAiplatformV1ManualBatchTuningParametersArgs{
 			BatchSize: v.BatchSize,
 		},
 		Labels: pulumi.ToStringMap(v.Labels),
+	}
+	if isCustomModel {
+		batchJobArgs.ServiceAccount = serviceAccountEmail
 	}
 
 	// every pulumi up operation is a new launch

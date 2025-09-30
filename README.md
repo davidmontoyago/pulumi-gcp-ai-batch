@@ -34,16 +34,13 @@ pulumi.Run(func(ctx *pulumi.Context) error {
 
         // Resource allocation
         MachineType:          pulumi.String("g2-standard-8"),
-        StartingReplicaCount: pulumi.Int(2),
-        MaxReplicaCount:      pulumi.Int(5),
-        BatchSize:            pulumi.Int(64),
         AcceleratorType:      pulumi.String("NVIDIA_L4"),
         AcceleratorCount:     pulumi.Int(1),
 
         // Metadata
         Labels: map[string]string{
             "environment": "production",
-            "model-type":  "bert",
+            "model-type":  "llama",
             "use-case":    "sentiment-analysis",
         },
     })
