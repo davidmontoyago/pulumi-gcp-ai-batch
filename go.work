@@ -1,0 +1,7 @@
+go 1.24.5
+
+use ./
+
+use ./examples/bert-sentiment-analysis-with-cpr
+
+use ./examples/llama-sentiment-analysis
