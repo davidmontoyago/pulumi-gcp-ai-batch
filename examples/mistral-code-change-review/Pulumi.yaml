@@ -1,0 +1,3 @@
+name: mistral-code-change-review
+description: Mistral code change review batch job
+runtime: go

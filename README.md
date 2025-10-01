@@ -113,6 +113,7 @@ See working end-to-end model deployments:
 | ---------------------------------------------------------------------------- | ----------------- | -------------------------------------------------------------------------------------- |
 | Sentiment analysis with Fine tuned BERT model with custom prediction routine | HuggingFace Model | [examples/bert-sentiment-analysis-with-cpr](examples/bert-sentiment-analysis-with-cpr) |
 | Sentiment analysis with out of the box Llama from the Model Garden           | GCP Model Garden  | [examples/llama-sentiment-analysis](examples/llama-sentiment-analysis)                 |
+| Code change review with Mistral model from the Model Garden                  | GCP Model Garden  | [examples/mistral-code-change-review](examples/mistral-code-change-review)             |
 
 
 See:

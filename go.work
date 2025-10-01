@@ -5,3 +5,5 @@ use ./
 use ./examples/bert-sentiment-analysis-with-cpr
 
 use ./examples/llama-sentiment-analysis
+
+use ./examples/mistral-code-change-review
