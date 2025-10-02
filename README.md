@@ -2,7 +2,7 @@
 
 [![Develop](https://github.com/davidmontoyago/pulumi-gcp-ai-batch/actions/workflows/develop.yaml/badge.svg)](https://github.com/davidmontoyago/pulumi-gcp-ai-batch/actions/workflows/develop.yaml) [![Go Coverage](https://raw.githubusercontent.com/wiki/davidmontoyago/pulumi-gcp-ai-batch/coverage.svg)](https://raw.githack.com/wiki/davidmontoyago/pulumi-gcp-ai-batch/coverage.html) [![Go Reference](https://pkg.go.dev/badge/github.com/davidmontoyago/pulumi-gcp-ai-batch.svg)](https://pkg.go.dev/github.com/davidmontoyago/pulumi-gcp-ai-batch)
 
-Deploy a model and a job for batched inference.
+Deploy a model and a job for batched inference in Vertex AI.
 
 ## Features
 
@@ -16,8 +16,8 @@ Deploy a model and a job for batched inference.
 ## Deploy model from the model garden
 ```go
 pulumi.Run(func(ctx *pulumi.Context) error {
-    // Launch a new async inference job with a BERT-based model
-    batchJob, err := gcp.NewAIBatch(ctx, "bert-sentiment-batch", &gcp.AIBatchArgs{
+    // Launch a new async inference job with a LLama-based model
+    batchJob, err := gcp.NewAIBatch(ctx, "llama-sentiment-batch", &gcp.AIBatchArgs{
         Project: "my-gcp-project",
         Region:  "us-central1",
 
@@ -58,7 +58,7 @@ pulumi.Run(func(ctx *pulumi.Context) error {
 ## Deploy custom model
 ```go
 pulumi.Run(func(ctx *pulumi.Context) error {
-    // Launch a new async inference job with a BERT-based model
+    // Launch a new async inference job with a BERT-based model downloaded from Hugging Face
     batchJob, err := gcp.NewAIBatch(ctx, "bert-sentiment-batch", &gcp.AIBatchArgs{
         Project: "my-gcp-project",
         Region:  "us-central1",
