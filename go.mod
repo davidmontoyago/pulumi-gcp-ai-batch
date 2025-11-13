@@ -8,7 +8,7 @@ require (
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/pulumi/pulumi-gcp/sdk/v8 v8.41.1
 	github.com/pulumi/pulumi-google-native/sdk v0.32.0
-	github.com/pulumi/pulumi/sdk/v3 v3.206.0
+	github.com/pulumi/pulumi/sdk/v3 v3.207.0
 	github.com/stretchr/testify v1.11.1
 )
 
