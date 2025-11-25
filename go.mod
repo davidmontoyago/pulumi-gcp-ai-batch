@@ -3,12 +3,12 @@ module github.com/davidmontoyago/pulumi-gcp-ai-batch
 go 1.24.5
 
 require (
-	github.com/davidmontoyago/commodity-namer v0.1.1
+	github.com/davidmontoyago/commodity-namer v0.2.0
 	github.com/davidmontoyago/pulumi-gcp-vertex-model-deployment/sdk/go v0.0.0-20250923093503-dd6e2950946c
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/pulumi/pulumi-gcp/sdk/v8 v8.41.1
 	github.com/pulumi/pulumi-google-native/sdk v0.32.0
-	github.com/pulumi/pulumi/sdk/v3 v3.207.0
+	github.com/pulumi/pulumi/sdk/v3 v3.208.0
 	github.com/stretchr/testify v1.11.1
 )
 
